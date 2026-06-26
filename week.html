@@ -17,7 +17,6 @@
 
   .wk-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
   .mo-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-  @media (max-width: 720px) { .wk-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 
   .wk-meal { position: relative; }
   .wk-meal .wk-actions { opacity: 0; pointer-events: none; transition: opacity 0.15s; }
@@ -71,23 +70,34 @@
 
   .chev-btn { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #E8EDF2; cursor: pointer; transition: background 0.15s; }
   .chev-btn:hover { background: #2A3A4A; }
-  .chev-btn.disabled { color: #3D5166; cursor: not-allowed; }
-  .chev-btn.disabled:hover { background: transparent; }
+  .chev-btn.disabled { color: #3D5166; cursor: not-allowed; pointer-events: none; }
 
   .close-btn { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #8B9BAD; transition: color 0.15s, transform 0.08s; }
   .close-btn:hover { color: #E8EDF2; }
   .close-btn:active { transform: scale(0.9); }
 
-  .back-btn { width: 32px; height: 32px; border-radius: 9px; border: 1px solid #34465A; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #8B9BAD; transition: color 0.15s, transform 0.08s; }
+  .back-btn { width: 32px; height: 32px; border-radius: 9px; border: 1px solid #34465A; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #8B9BAD; transition: color 0.15s, transform 0.08s; flex-shrink: 0; }
   .back-btn:hover { color: #E8EDF2; }
   .back-btn:active { transform: scale(0.9); }
 
-  .wk-slot-row { position: relative; display: flex; align-items: center; padding: 7px 9px; border-radius: 10px; transition: background 0.15s, border-color 0.15s; }
-  .wk-slot-row.tappable:hover { border-color: #2ABFAD !important; background: #1A2430; }
+  /* slot rows - full width like CD */
+  .slot-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px dashed #2A3A4A; transition: border-color 0.15s, background 0.15s; position: relative; }
+  .slot-row.logged { border: 1px solid transparent; }
+  .slot-row.planned { border: 1px dashed #3A4C5E; }
+  .slot-row.empty { border: 1px dashed #2A3A4A; cursor: pointer; }
+  .slot-row.planned.tappable { cursor: pointer; }
+  .slot-row.tappable:hover { border-color: #2ABFAD; background: #1A2430; }
+  .slot-row.empty:hover { border-color: #2ABFAD; background: #1A2430; }
+
+  .slot-icon { width: 24px; height: 24px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .slot-icon.logged { background: rgba(42,191,173,0.14); }
+  .slot-icon.planned { border: 1px solid #3D5166; }
+  .slot-icon.empty { border: 1px dashed #3A4C5E; }
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="modal-root"></div>
 
 <script>
 // ─── DATA ───────────────────────────────────────────────────────────────────
@@ -139,21 +149,42 @@ const TODAY_MEALS = {
 
 // ─── STATE ──────────────────────────────────────────────────────────────────
 let state = {
-  view: 'week',
-  weekOffset: 0,
-  monthOffset: 0,
+  view: 'week', weekOffset: 0, monthOffset: 0,
   planned: {
     '2026-06-26': { breakfast:{name:'Oatmeal & banana',kcal:350,protein:12}, lunch:{name:'Turkey wrap',kcal:420,protein:32}, snack:{name:'Cottage cheese & fruit',kcal:240,protein:26}, dinner:{name:'Steak & greens',kcal:560,protein:46} },
     '2026-06-27': { breakfast:{name:'Protein smoothie',kcal:280,protein:30}, lunch:{name:'Chicken & quinoa bowl',kcal:540,protein:50}, snack:null, dinner:null },
     '2026-06-28': { breakfast:null, lunch:null, snack:null, dinner:null },
   },
   modalKey: null, modalSlot: null, step: 1, search: '', activeTags: [], selected: {}, order: [],
+  customInputs: {}, // track custom gram values separately to avoid re-render loss
 };
 
+// Smart update: only re-render modal if modal state changed, only re-render grid if grid state changed
+let prevModalOpen = false;
+
 function setState(patch) {
+  const prev = state;
   if (typeof patch === 'function') state = { ...state, ...patch(state) };
   else state = { ...state, ...patch };
-  render();
+
+  const modalJustOpened = !prev.modalKey && state.modalKey;
+  const modalJustClosed = prev.modalKey && !state.modalKey;
+  const modalStepChanged = prev.step !== state.step;
+  const modalSearchChanged = prev.search !== state.search;
+  const modalTagsChanged = JSON.stringify(prev.activeTags) !== JSON.stringify(state.activeTags);
+  const modalSelectionChanged = JSON.stringify(prev.selected) !== JSON.stringify(state.selected);
+  const modalOrderChanged = JSON.stringify(prev.order) !== JSON.stringify(state.order);
+  const gridChanged = prev.view !== state.view || prev.weekOffset !== state.weekOffset ||
+    prev.monthOffset !== state.monthOffset || JSON.stringify(prev.planned) !== JSON.stringify(state.planned);
+
+  // Always re-render main if grid changed or modal opened/closed
+  if (gridChanged || modalJustOpened || modalJustClosed) renderMain();
+
+  // Re-render modal if anything modal-related changed
+  if (state.modalKey && (modalJustOpened || modalStepChanged || modalSearchChanged || modalTagsChanged || modalSelectionChanged || modalOrderChanged)) {
+    renderModal();
+  }
+  if (modalJustClosed) renderModal();
 }
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
@@ -210,6 +241,7 @@ function openPicker(k, slot) {
   const existing=(state.planned[k]||{})[slot];
   let selected={}, order=[];
   if(existing){ const it=LIBRARY.find(i=>i.name===existing.name); if(it){ selected[it.id]={portion:'whole',customG:''}; order=[it.id]; } }
+  state.customInputs = {};
   setState({ modalKey:k, modalSlot:slot, step:1, search:'', activeTags:[], selected, order });
 }
 function closeModal() { setState({ modalKey:null, modalSlot:null }); }
@@ -220,21 +252,70 @@ function toggleItem(id) {
   setState(s=>{ const selected={...s.selected}; let order=[...s.order]; if(selected[id]){ delete selected[id]; order=order.filter(x=>x!==id); } else { selected[id]={portion:null,customG:''}; order=[...order,id]; } return { selected, order }; });
 }
 function toggleTag(t) { setState(s=>({ activeTags: s.activeTags.includes(t)?s.activeTags.filter(x=>x!==t):[...s.activeTags,t] })); }
-function setPortion(id,p) { setState(s=>({ selected:{...s.selected,[id]:{...s.selected[id],portion:p}} })); }
-function setCustomG(id,v) { const clean=String(v).replace(/[^0-9]/g,''); setState(s=>({ selected:{...s.selected,[id]:{...s.selected[id],portion:'custom',customG:clean}} })); }
+function setPortion(id,p) {
+  // Preserve custom input value from DOM before re-rendering
+  const inputEl = document.querySelector(`.custom-g-input[data-id="${id}"]`);
+  const customG = inputEl ? inputEl.value : (state.selected[id]||{}).customG || '';
+  setState(s=>({ selected:{...s.selected,[id]:{...s.selected[id],portion:p, customG}} }));
+}
+function setCustomG(id, val) {
+  const clean = String(val).replace(/[^0-9]/g, '');
+  // Update state directly without triggering modal re-render
+  state = { ...state, selected: {...state.selected, [id]: {...state.selected[id], portion:'custom', customG: clean}} };
+  // Update sidebar totals without re-rendering the input
+  updateSidebarTotals();
+}
 function gotoStep2() { setState({ step:2 }); }
 function gotoStep1() { setState(s=>{ const selected={}; for(const id of s.order) selected[id]={portion:null,customG:''}; return { step:1, selected }; }); }
 function savePlan() {
+  // Read any custom inputs from DOM before saving
+  document.querySelectorAll('.custom-g-input').forEach(el => {
+    const id = el.dataset.id;
+    if (id && state.selected[id]) {
+      state.selected[id] = {...state.selected[id], customG: el.value};
+    }
+  });
   setState(s=>{
     let names=[],kcal=0,protein=0;
-    for(const id of s.order){ const it=itemById(id); const c=calc(it,s.selected[id]); names.push(it.name); kcal+=c.kcal; protein+=c.protein; }
+    for(const id of s.order){ const it=itemById(id); const c=calc(it,s.selected[id]); if(c){ names.push(it.name); kcal+=c.kcal; protein+=c.protein; } }
     const day={...(s.planned[s.modalKey]||{breakfast:null,lunch:null,snack:null,dinner:null})};
     day[s.modalSlot]={name:names.join(', '),kcal,protein};
     return { planned:{...s.planned,[s.modalKey]:day}, modalKey:null, modalSlot:null };
   });
 }
 
-// ─── SVG ICONS ──────────────────────────────────────────────────────────────
+function updateSidebarTotals() {
+  const s = state;
+  let totalK=0, totalP=0, allConfirmed=s.order.length>0;
+  for (const id of s.order) {
+    const it=itemById(id);
+    // Read value directly from DOM input if present
+    const inputEl = document.querySelector(`.custom-g-input[data-id="${id}"]`);
+    const sel = inputEl ? {...s.selected[id], customG: inputEl.value} : s.selected[id];
+    const c=calc(it,sel);
+    if(c){ totalK+=c.kcal; totalP+=c.protein; } else { allConfirmed=false; }
+    const rowEl = document.querySelector(`.sidebar-item[data-id="${id}"]`);
+    if (rowEl) {
+      rowEl.querySelector('.item-kcal').textContent = c ? `${fmt(c.kcal)} kcal` : '';
+      rowEl.querySelector('.item-protein').textContent = c ? `${c.protein}g protein` : '';
+      rowEl.querySelector('.item-kcal').style.color = c ? '#E8EDF2' : '#5C6B7A';
+    }
+  }
+  const totalKEl = document.getElementById('sidebar-total-kcal');
+  const totalPEl = document.getElementById('sidebar-total-protein');
+  const ctaEl = document.getElementById('modal-cta');
+  if (totalKEl) totalKEl.textContent = `${fmt(totalK)} kcal`;
+  if (totalPEl) totalPEl.textContent = `${totalP}g protein`;
+  if (ctaEl) {
+    const label = s.step === 1 ? 'Continue' : 'Save to plan';
+    ctaEl.textContent = label;
+    ctaEl.className = `cta-btn ${allConfirmed ? 'enabled' : 'disabled'}`;
+    ctaEl.disabled = !allConfirmed;
+    ctaEl.onclick = allConfirmed ? (s.step===1 ? gotoStep2 : savePlan) : null;
+  }
+}
+
+// ─── ICONS ──────────────────────────────────────────────────────────────────
 const iconCalendar = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9h17M8 2.5v4M16 2.5v4"/></svg>`;
 const iconWeek = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>`;
 const iconRecipes = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17l-6-4-6 4z"/></svg>`;
@@ -256,7 +337,7 @@ const iconCheckW = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" 
 const iconPlusTeal = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`;
 const iconPlus = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`;
 
-// ─── DAY CARD BUILDER ───────────────────────────────────────────────────────
+// ─── DAY CARD ───────────────────────────────────────────────────────────────
 function buildDayCard(k, d) {
   const st = status(k);
   const meals = mealsFor(k);
@@ -266,9 +347,7 @@ function buildDayCard(k, d) {
   const hasKcal = st === 'past' || st === 'today';
   const star = st === 'past' && con <= GOAL;
 
-  let cardStyle = 'border-radius:16px;padding:16px 15px;';
-  cardStyle += isToday ? 'background:#2A3A4A;border:1px solid #34465A;' : 'background:#1C2733;border:1px solid #2A3A4A;';
-
+  const cardBg = isToday ? 'background:#2A3A4A;border:1px solid #34465A;' : 'background:#1C2733;border:1px solid #2A3A4A;';
   const numColor = isToday ? '#2ABFAD' : '#E8EDF2';
 
   const slotsHTML = SLOTS.map(([sk,label]) => {
@@ -278,45 +357,48 @@ function buildDayCard(k, d) {
     const isEmpty = !m;
     const tappable = editable && (isPlanned || isEmpty);
 
-    let rowBorder = isLogged ? 'border:1px solid transparent;' : isPlanned ? 'border:1px dashed #3A4C5E;' : 'border:1px dashed #2A3A4A;';
-    let iconBg = isLogged ? 'background:rgba(42,191,173,0.14);' : isPlanned ? 'border:1px solid #3D5166;' : 'border:1px dashed #3A4C5E;';
-    let nameColor = (isLogged || isPlanned) ? '#E8EDF2' : '#6B7E91';
-    let icon = isLogged ? iconCheckTeal : isPlanned ? iconDot : iconPlusGray;
-    let name = m ? m.name : `Add ${label.toLowerCase()}`;
+    let rowClass = 'slot-row ' + (isLogged ? 'logged' : isPlanned ? 'planned' : 'empty');
+    if (tappable) rowClass += ' tappable';
 
-    const tapAttr = tappable ? `onclick="openPicker('${k}','${sk}')" style="cursor:pointer;"` : '';
+    const iconClass = 'slot-icon ' + (isLogged ? 'logged' : isPlanned ? 'planned' : 'empty');
+    const icon = isLogged ? iconCheckTeal : isPlanned ? iconDot : iconPlusGray;
+    const nameColor = (isLogged || isPlanned) ? '#E8EDF2' : '#6B7E91';
+    const name = m ? m.name : `Add ${label.toLowerCase()}`;
+
+    const clickAttr = tappable ? `onclick="openPicker('${k}','${sk}')"` : '';
+
     const actionsHTML = editable && isPlanned ? `
-      <div class="wk-actions" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:1px;padding-left:14px;border-radius:6px;background:#1A2430;box-shadow:-10px 0 10px 4px #1A2430;">
-        <div class="meal-icon" onclick="openPicker('${k}','${sk}')" title="Edit">${iconEdit}</div>
-        <div class="meal-icon" onclick="removePlanned('${k}','${sk}')" title="Remove">${iconTrash}</div>
+      <div class="wk-actions" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:1px;padding-left:14px;border-radius:6px;background:${isToday?'#2A3A4A':'#1C2733'};box-shadow:-10px 0 10px 4px ${isToday?'#2A3A4A':'#1C2733'};">
+        <div class="meal-icon" onclick="openPicker('${k}','${sk}')">${iconEdit}</div>
+        <div class="meal-icon" onclick="removePlanned('${k}','${sk}')">${iconTrash}</div>
       </div>` : '';
 
     return `
-      <div class="wk-meal wk-slot-row${tappable ? ' tappable' : ''}" style="${rowBorder}">
-        <div ${tapAttr} style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;">
-          <div style="width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;${iconBg}">${icon}</div>
+      <div class="wk-meal">
+        <div class="${rowClass}" ${clickAttr}>
+          <div class="${iconClass}">${icon}</div>
           <div style="min-width:0;flex:1;">
-            <div style="font-size:9px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#6B7E91;margin-bottom:1px;">${label}</div>
-            <div style="font-size:12.5px;font-weight:500;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:${nameColor};">${name}</div>
+            <div style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#6B7E91;margin-bottom:2px;">${label}</div>
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:${nameColor};">${name}</div>
           </div>
+          ${actionsHTML}
         </div>
-        ${actionsHTML}
       </div>`;
   }).join('');
 
   return `
-    <div style="${cardStyle}">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;">
+    <div style="border-radius:16px;padding:16px 15px;${cardBg}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
         <div style="display:flex;align-items:baseline;gap:7px;">
           <span style="font-size:11px;font-weight:600;letter-spacing:0.07em;color:#8B9BAD;">${DOW[d.getDay()]}</span>
-          <span style="font-size:18px;font-weight:600;letter-spacing:-0.01em;color:${numColor};">${d.getDate()}</span>
+          <span style="font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${numColor};">${d.getDate()}</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px;min-height:18px;">
           ${star ? iconStarSm : ''}
           ${isToday ? '<span style="font-size:10px;font-weight:600;letter-spacing:0.04em;color:#2ABFAD;background:rgba(42,191,173,0.13);padding:3px 7px;border-radius:6px;">TODAY</span>' : ''}
         </div>
       </div>
-      ${hasKcal ? `<div style="font-size:11px;color:#8B9BAD;margin-top:-6px;margin-bottom:11px;">${con.toLocaleString('en-US')} / 1,300 kcal</div>` : ''}
+      ${hasKcal ? `<div style="font-size:11px;color:#8B9BAD;margin-bottom:10px;">${con.toLocaleString('en-US')} / 1,300 kcal</div>` : ''}
       <div style="display:flex;flex-direction:column;gap:6px;">${slotsHTML}</div>
     </div>`;
 }
@@ -324,21 +406,20 @@ function buildDayCard(k, d) {
 // ─── MONTH CELLS ────────────────────────────────────────────────────────────
 function buildMonthCells() {
   const base = new Date(2026, 5 + state.monthOffset, 1);
-  const y = base.getFullYear(), m = base.getMonth();
-  const startDow = (base.getDay() + 6) % 7;
-  const dim = new Date(y, m+1, 0).getDate();
-  let html = '';
-  for (let i=0;i<startDow;i++) html += `<div style="min-height:82px;"></div>`;
-  for (let dn=1;dn<=dim;dn++) {
+  const y=base.getFullYear(), m=base.getMonth();
+  const startDow=(base.getDay()+6)%7;
+  const dim=new Date(y,m+1,0).getDate();
+  let html='';
+  for(let i=0;i<startDow;i++) html+=`<div style="min-height:82px;"></div>`;
+  for(let dn=1;dn<=dim;dn++){
     const d=new Date(y,m,dn); const k=key(d); const st=status(k); const isToday=k===TODAY;
     let star=false, kcalText='', hasKcal=false;
     if(st==='past'){ const meals=pastMeals(k); let c=0; SLOTS.forEach(([sk])=>c+=meals[sk].kcal); star=c<=GOAL; kcalText=`${c.toLocaleString('en-US')} / 1,300`; hasKcal=true; }
     else if(st==='today'){ const c=consumed(TODAY_MEALS); kcalText=`${c.toLocaleString('en-US')} / 1,300`; hasKcal=true; }
-    const cellStyle = 'border-radius:12px;padding:9px 10px;min-height:82px;display:flex;flex-direction:column;justify-content:space-between;' + (isToday ? 'background:#2A3A4A;border:1px solid #34465A;' : 'background:#1C2733;border:1px solid #2A3A4A;');
-    const numColor = isToday ? '#2ABFAD' : (st==='future' ? '#5C6B7A' : '#E8EDF2');
-    html += `<div style="${cellStyle}"><div style="display:flex;align-items:flex-start;justify-content:space-between;"><span style="font-size:14px;font-weight:600;color:${numColor};">${dn}</span>${star?`<svg width="14" height="14" viewBox="0 0 24 24" fill="#E8B800" stroke="none"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"/></svg>`:''}</div>${hasKcal?`<div style="font-size:11px;color:#8B9BAD;">${kcalText}</div>`:''}</div>`;
+    const cellStyle='border-radius:12px;padding:9px 10px;min-height:82px;display:flex;flex-direction:column;justify-content:space-between;'+(isToday?'background:#2A3A4A;border:1px solid #34465A;':'background:#1C2733;border:1px solid #2A3A4A;');
+    const numColor=isToday?'#2ABFAD':(st==='future'?'#5C6B7A':'#E8EDF2');
+    html+=`<div style="${cellStyle}"><div style="display:flex;align-items:flex-start;justify-content:space-between;"><span style="font-size:14px;font-weight:600;color:${numColor};">${dn}</span>${star?`<svg width="14" height="14" viewBox="0 0 24 24" fill="#E8B800" stroke="none"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"/></svg>`:''}</div>${hasKcal?`<div style="font-size:11px;color:#8B9BAD;">${kcalText}</div>`:''}</div>`;
   }
-  while((dim+startDow)%7!==0) { html += `<div style="min-height:82px;"></div>`; }
   return html;
 }
 
@@ -360,12 +441,123 @@ function renderItemRow(it, isSelected) {
     </div>`;
 }
 
-// ─── RENDER ─────────────────────────────────────────────────────────────────
-function render() {
+// ─── RENDER MODAL (separate from main) ──────────────────────────────────────
+function renderModal() {
+  const s = state;
+  const root = document.getElementById('modal-root');
+  if (!s.modalKey) { root.innerHTML = ''; return; }
+
+  const slotLabel = (SLOTS.find(([k]) => k===s.modalSlot)||[null,''])[1];
+  const q = s.search.trim().toLowerCase();
+  const matches = it => (!q||it.name.toLowerCase().includes(q))&&(s.activeTags.length===0||it.tags.some(t=>s.activeTags.includes(t)));
+  const showSections = !q && s.activeTags.length === 0;
+  const filtered = LIBRARY.filter(matches);
+  const tagsHTML = ALL_TAGS.map(t => `<div class="tag-chip${s.activeTags.includes(t)?' active':''}" onclick="toggleTag('${t}')">${t}</div>`).join('');
+
+  let listHTML = '';
+  if (showSections) {
+    listHTML = `<div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B9BAD;margin:4px 0 6px;">Recents</div>${RECENTS.map(id=>renderItemRow(itemById(id),!!s.selected[id])).join('')}<div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B9BAD;margin:18px 0 6px;">Favourites</div>${FAVOURITES.map(id=>renderItemRow(itemById(id),!!s.selected[id])).join('')}`;
+  } else if (filtered.length > 0) {
+    listHTML = filtered.map(it=>renderItemRow(it,!!s.selected[it.id])).join('');
+  } else {
+    listHTML = `<div style="padding:40px 8px;text-align:center;"><div style="font-size:15px;color:#8B9BAD;margin-bottom:10px;">Nothing found.</div></div>`;
+  }
+
+  let totalK=0, totalP=0, allConfirmed=s.order.length>0;
+  const addedItemsHTML = s.order.map(id=>{
+    const it=itemById(id); const c=calc(it,s.selected[id]);
+    if(c){ totalK+=c.kcal; totalP+=c.protein; } else { allConfirmed=false; }
+    return `<div class="sidebar-item" data-id="${id}" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:11px 0;">
+      <span style="font-size:14px;color:#E8EDF2;flex:1;min-width:0;">${it.name}</span>
+      <div style="text-align:right;flex-shrink:0;">
+        <div class="item-kcal" style="font-size:14px;font-weight:500;color:${c?'#E8EDF2':'#5C6B7A'};">${c?fmt(c.kcal)+' kcal':''}</div>
+        <div class="item-protein" style="font-size:12px;color:#8B9BAD;margin-top:2px;">${c?c.protein+'g protein':''}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const sidebarEmptyHTML = s.order.length===0 ? `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 10px;"><span style="font-size:13px;color:#5C6B7A;line-height:1.5;">Pick items on the left to build this meal.</span></div>` : '';
+  const ctaEnabled = s.step===1 ? s.order.length>0 : allConfirmed;
+  const ctaLabel = s.step===1 ? 'Continue' : 'Save to plan';
+  const ctaAction = s.step===1 ? 'gotoStep2()' : 'savePlan()';
+
+  let step2HTML = '';
+  if (s.step === 2) {
+    step2HTML = s.order.map(id=>{
+      const it=itemById(id); const sel=s.selected[id]; const p=sel.portion;
+      return `<div style="background:#2A3A4A;border:1px solid #34465A;border-radius:14px;padding:16px 18px;">
+        <div style="font-size:15px;font-weight:500;color:#E8EDF2;margin-bottom:14px;">${it.name}</div>
+        <div style="display:flex;gap:8px;">
+          <button class="preset-btn${p==='whole'?' active':''}" onclick="setPortion('${id}','whole')">Whole</button>
+          <button class="preset-btn${p==='half'?' active':''}" onclick="setPortion('${id}','half')">Half</button>
+          <button class="preset-btn${p==='custom'?' active':''}" onclick="setPortion('${id}','custom')">Custom</button>
+        </div>
+        ${p==='custom'?`<div style="margin-top:12px;display:flex;align-items:center;gap:8px;">
+          <input class="custom-g-input" type="text" inputmode="numeric" data-id="${id}" value="${sel.customG||''}"
+            oninput="setCustomG('${id}',this.value)"
+            placeholder="0"/>
+          <span style="font-size:14px;color:#8B9BAD;">grams</span>
+        </div>`:''}
+      </div>`;
+    }).join('');
+  }
+
+  root.innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal-box">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding:28px 30px;">
+          ${s.step===1 ? `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+              <span style="font-size:20px;font-weight:500;color:#E8EDF2;">Plan ${slotLabel}</span>
+              <span style="font-size:13px;color:#8B9BAD;">1 / 2</span>
+            </div>
+            <div style="position:relative;margin-bottom:16px;">
+              <div style="position:absolute;left:15px;top:50%;transform:translateY(-50%);">${iconSearch}</div>
+              <input class="search-input" type="text" value="${s.search}" oninput="setState({search:this.value})" placeholder="Search meals and ingredients…"/>
+            </div>
+            <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:18px;">${tagsHTML}</div>
+            <div style="flex:1;min-height:0;overflow-y:auto;margin:0 -6px;padding:0 16px 0 6px;">${listHTML}</div>
+          ` : `
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div class="back-btn" onclick="gotoStep1()">${iconBack}</div>
+                <span style="font-size:20px;font-weight:500;color:#E8EDF2;">Confirm portions</span>
+              </div>
+              <span style="font-size:13px;color:#8B9BAD;">2 / 2</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow-y:auto;margin:0 -6px;padding:0 6px;display:flex;flex-direction:column;gap:12px;">${step2HTML}</div>
+          `}
+        </div>
+        <div style="width:320px;flex-shrink:0;border-left:1px solid #2A3A4A;background:#1A242F;display:flex;flex-direction:column;padding:28px 26px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B9BAD;">Added</span>
+            <div class="close-btn" onclick="closeModal()">${iconClose}</div>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;">${sidebarEmptyHTML}${addedItemsHTML}</div>
+          <div style="border-top:1px solid #2A3A4A;margin-top:6px;padding-top:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">
+              <span style="font-size:14px;color:#8B9BAD;">Total</span>
+              <div style="text-align:right;">
+                <div id="sidebar-total-kcal" style="font-size:22px;font-weight:600;color:#E8EDF2;letter-spacing:-0.02em;">${fmt(totalK)} kcal</div>
+                <div id="sidebar-total-protein" style="font-size:13px;color:#8B9BAD;margin-top:2px;">${totalP}g protein</div>
+              </div>
+            </div>
+            <button id="modal-cta" class="cta-btn ${ctaEnabled?'enabled':'disabled'}" ${ctaEnabled?`onclick="${ctaAction}"`:'disabled'}>${ctaLabel}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  // Auto-focus custom input if present
+  const customInput = root.querySelector('.custom-g-input');
+  if (customInput) customInput.focus();
+}
+
+// ─── RENDER MAIN ────────────────────────────────────────────────────────────
+function renderMain() {
   const s = state;
   const isWeek = s.view === 'week', isMonth = s.view === 'month';
 
-  // header
   let headerLabel, headerTag;
   if (isWeek) {
     const mon=monday(s.weekOffset), sun=addDays(mon,6);
@@ -380,100 +572,19 @@ function render() {
 
   const atMax = isWeek && s.weekOffset >= 2;
 
-  // week grid
   let mainHTML = '';
   if (isWeek) {
     const mon = monday(s.weekOffset);
     const cards = [0,1,2,3,4,5,6].map(i => { const d=addDays(mon,i); return buildDayCard(key(d),d); }).join('');
     mainHTML = `<div class="wk-grid">${cards}</div>`;
   } else {
-    const heads = WD_HEADS.map(h => `<div style="font-size:11px;font-weight:600;letter-spacing:0.07em;color:#6B7E91;text-align:center;padding:2px 0;">${h}</div>`).join('');
+    const heads = WD_HEADS.map(h=>`<div style="font-size:11px;font-weight:600;letter-spacing:0.07em;color:#6B7E91;text-align:center;padding:2px 0;">${h}</div>`).join('');
     mainHTML = `<div><div class="mo-grid" style="margin-bottom:10px;">${heads}</div><div class="mo-grid">${buildMonthCells()}</div></div>`;
-  }
-
-  // modal
-  let modalHTML = '';
-  if (s.modalKey) {
-    const slotLabel = (SLOTS.find(([k]) => k===s.modalSlot)||[null,''])[1];
-    const q = s.search.trim().toLowerCase();
-    const matches = it => (!q||it.name.toLowerCase().includes(q))&&(s.activeTags.length===0||it.tags.some(t=>s.activeTags.includes(t)));
-    const showSections = !q && s.activeTags.length === 0;
-    const filtered = LIBRARY.filter(matches);
-    const tagsHTML = ALL_TAGS.map(t => `<div class="tag-chip${s.activeTags.includes(t)?' active':''}" onclick="toggleTag('${t}')">${t}</div>`).join('');
-
-    let listHTML = '';
-    if (showSections) {
-      listHTML = `<div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B9BAD;margin:4px 0 6px;">Recents</div>${RECENTS.map(id=>renderItemRow(itemById(id),!!s.selected[id])).join('')}<div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B9BAD;margin:18px 0 6px;">Favourites</div>${FAVOURITES.map(id=>renderItemRow(itemById(id),!!s.selected[id])).join('')}`;
-    } else if (filtered.length > 0) {
-      listHTML = filtered.map(it=>renderItemRow(it,!!s.selected[it.id])).join('');
-    } else {
-      listHTML = `<div style="padding:40px 8px;text-align:center;"><div style="font-size:15px;color:#8B9BAD;margin-bottom:10px;">Nothing found. Add it to your library instead.</div><div style="display:inline-flex;align-items:center;gap:6px;color:#E8B800;font-size:14px;font-weight:500;cursor:pointer;">${iconPlus} Add new item</div></div>`;
-    }
-
-    let totalK=0, totalP=0, allConfirmed=s.order.length>0;
-    const addedItemsHTML = s.order.map(id=>{
-      const it=itemById(id); const c=calc(it,s.selected[id]);
-      if(c){ totalK+=c.kcal; totalP+=c.protein; } else { allConfirmed=false; }
-      return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:11px 0;"><span style="font-size:14px;color:#E8EDF2;flex:1;min-width:0;">${it.name}</span><div style="text-align:right;flex-shrink:0;"><div style="font-size:14px;font-weight:500;color:${c?'#E8EDF2':'#5C6B7A'};">${c?fmt(c.kcal)+' kcal':''}</div><div style="font-size:12px;color:#8B9BAD;margin-top:2px;">${c?c.protein+'g protein':''}</div></div></div>`;
-    }).join('');
-
-    const sidebarEmptyHTML = s.order.length===0 ? `<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 10px;"><span style="font-size:13px;color:#5C6B7A;line-height:1.5;">Pick items on the left to build this meal.</span></div>` : '';
-
-    const ctaEnabled = s.step===1 ? s.order.length>0 : allConfirmed;
-    const ctaLabel = s.step===1 ? 'Continue' : 'Save to plan';
-    const ctaAction = s.step===1 ? 'gotoStep2()' : 'savePlan()';
-
-    let step2HTML = '';
-    if (s.step === 2) {
-      step2HTML = s.order.map(id=>{
-        const it=itemById(id); const sel=s.selected[id]; const p=sel.portion;
-        return `<div style="background:#2A3A4A;border:1px solid #34465A;border-radius:14px;padding:16px 18px;"><div style="font-size:15px;font-weight:500;color:#E8EDF2;margin-bottom:14px;">${it.name}</div><div style="display:flex;gap:8px;"><button class="preset-btn${p==='whole'?' active':''}" onclick="setPortion('${id}','whole')">Whole</button><button class="preset-btn${p==='half'?' active':''}" onclick="setPortion('${id}','half')">Half</button><button class="preset-btn${p==='custom'?' active':''}" onclick="setPortion('${id}','custom')">Custom</button></div>${p==='custom'?`<div style="margin-top:12px;display:flex;align-items:center;gap:8px;"><input class="custom-g-input" type="text" value="${sel.customG}" oninput="setCustomG('${id}',this.value)" placeholder="0"/><span style="font-size:14px;color:#8B9BAD;">grams</span></div>`:''}</div>`;
-      }).join('');
-    }
-
-    modalHTML = `
-      <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-        <div class="modal-box">
-          <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding:28px 30px;">
-            ${s.step===1 ? `
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-                <span style="font-size:20px;font-weight:500;color:#E8EDF2;">Plan ${slotLabel}</span>
-                <span style="font-size:13px;color:#8B9BAD;">1 / 2</span>
-              </div>
-              <div style="position:relative;margin-bottom:16px;"><div style="position:absolute;left:15px;top:50%;transform:translateY(-50%);">${iconSearch}</div><input class="search-input" type="text" value="${s.search}" oninput="setState({search:this.value})" placeholder="Search meals and ingredients…"/></div>
-              <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:18px;">${tagsHTML}</div>
-              <div style="flex:1;min-height:0;overflow-y:auto;margin:0 -6px;padding:0 16px 0 6px;">${listHTML}</div>
-            ` : `
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-                <div style="display:flex;align-items:center;gap:12px;"><div class="back-btn" onclick="gotoStep1()">${iconBack}</div><span style="font-size:20px;font-weight:500;color:#E8EDF2;">Confirm portions</span></div>
-                <span style="font-size:13px;color:#8B9BAD;">2 / 2</span>
-              </div>
-              <div style="flex:1;min-height:0;overflow-y:auto;margin:0 -6px;padding:0 6px;display:flex;flex-direction:column;gap:12px;">${step2HTML}</div>
-            `}
-          </div>
-          <div style="width:320px;flex-shrink:0;border-left:1px solid #2A3A4A;background:#1A242F;display:flex;flex-direction:column;padding:28px 26px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-              <span style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8B9BAD;">Added</span>
-              <div class="close-btn" onclick="closeModal()">${iconClose}</div>
-            </div>
-            <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;">${sidebarEmptyHTML}${addedItemsHTML}</div>
-            <div style="border-top:1px solid #2A3A4A;margin-top:6px;padding-top:16px;">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">
-                <span style="font-size:14px;color:#8B9BAD;">Total</span>
-                <div style="text-align:right;"><div style="font-size:22px;font-weight:600;color:#E8EDF2;letter-spacing:-0.02em;">${fmt(totalK)} kcal</div><div style="font-size:13px;color:#8B9BAD;margin-top:2px;">${totalP}g protein</div></div>
-              </div>
-              <button class="cta-btn ${ctaEnabled?'enabled':'disabled'}" ${ctaEnabled?`onclick="${ctaAction}"`:'disabled'}>${ctaLabel}</button>
-            </div>
-          </div>
-        </div>
-      </div>`;
   }
 
   document.getElementById('app').innerHTML = `
     <div style="min-height:100vh;background:#141B24;padding:36px 40px;display:flex;justify-content:center;">
       <div style="width:100%;max-width:1340px;">
-
-        <!-- NAV -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:30px;">
           <div style="display:flex;align-items:center;gap:32px;">
             <div style="font-family:'Instrument Serif',serif;font-size:30px;line-height:1;color:#E8EDF2;padding-right:6px;">portia</div>
@@ -488,24 +599,16 @@ function render() {
             ${iconStar}<span style="font-size:15px;font-weight:600;color:#E8B800;">7</span><span style="font-size:13px;color:#8B9BAD;">day streak</span>
           </div>
         </div>
-
-        <!-- HEADER ROW -->
         <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:20px;flex-wrap:wrap;">
-          <div>
-            <div style="display:flex;align-items:center;gap:14px;">
-              <div style="font-size:26px;font-weight:500;color:#E8EDF2;letter-spacing:-0.01em;">${headerLabel}</div>
-              <div style="font-size:12px;font-weight:500;color:#8B9BAD;background:#1C2733;border:1px solid #2A3A4A;padding:5px 11px;border-radius:8px;">${headerTag}</div>
-            </div>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="font-size:26px;font-weight:500;color:#E8EDF2;letter-spacing:-0.01em;">${headerLabel}</div>
+            <div style="font-size:12px;font-weight:500;color:#8B9BAD;background:#1C2733;border:1px solid #2A3A4A;padding:5px 11px;border-radius:8px;">${headerTag}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
             ${isWeek && s.weekOffset >= 0 ? `<button class="rand-btn" onclick="randomize()">${iconShuffle} Randomize meals</button>` : ''}
             <div style="display:flex;align-items:center;gap:4px;background:#1C2733;border:1px solid #2A3A4A;border-radius:11px;padding:4px;">
-              <div class="chev-btn" onclick="${isWeek?'prevWeek()':'prevMonth()'}">
-                ${iconChevL}
-              </div>
-              <div class="chev-btn${atMax?' disabled':''}" onclick="${atMax?'':isWeek?'nextWeek()':'nextMonth()'}">
-                ${iconChevR}
-              </div>
+              <div class="chev-btn" onclick="${isWeek?'prevWeek()':'prevMonth()'}"> ${iconChevL}</div>
+              <div class="chev-btn${atMax?' disabled':''}" onclick="${atMax?'':isWeek?'nextWeek()':'nextMonth()'}"> ${iconChevR}</div>
             </div>
             <div style="display:flex;align-items:center;gap:3px;background:#1C2733;border:1px solid #2A3A4A;border-radius:11px;padding:4px;">
               <div class="seg-btn${isWeek?' active':''}" onclick="setView('week')">Week</div>
@@ -513,14 +616,14 @@ function render() {
             </div>
           </div>
         </div>
-
         ${mainHTML}
       </div>
-    </div>
-    ${modalHTML}`;
+    </div>`;
 }
 
-render();
+// Initial render
+renderMain();
+renderModal();
 </script>
 </body>
 </html>

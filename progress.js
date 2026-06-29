@@ -224,10 +224,15 @@ function renderNavPg() {
           </a>
         </div>
       </div>
-      <div class="streak-badge">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8B800" stroke="none"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"/></svg>
-        <span class="streak-number">${Data.getStreak().currentStreak}</span>
-        <span class="streak-label">day streak</span>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="streak-badge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8B800" stroke="none"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"/></svg>
+          <span class="streak-number">${Data.getStreak().currentStreak}</span>
+          <span class="streak-label">day streak</span>
+        </div>
+        <a href="backup.html" title="Backup & sync" style="width:40px; height:40px; border-radius:12px; background:#1C2733; border:1px solid #2A3A4A; display:flex; align-items:center; justify-content:center; color:#8B9BAD; transition:color 150ms ease;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.6 4.6 0 0 1-1-9.1A5.5 5.5 0 0 1 17 8.5a4 4 0 0 1-1 7.9"></path><path d="M12 12v8m0 0-3-3m3 3 3-3"></path></svg>
+        </a>
       </div>
     </div>
   `;

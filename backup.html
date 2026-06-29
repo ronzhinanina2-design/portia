@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portia — Backup &amp; Sync</title>
+<script src="auth.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { display: flex; justify-content: center; padding: 48px 20px 80px; }
+  .bk-wrap { width: 100%; max-width: 560px; }
+  .bk-back {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--fog); font-size: 14px;
+    text-decoration: none; margin-bottom: 28px; cursor: pointer;
+  }
+  .bk-back:hover { color: var(--cold-white); }
+  .bk-title { font-size: 26px; font-weight: 500; color: var(--cold-white); margin-bottom: 8px; }
+  .bk-sub { font-size: 14px; color: var(--fog); line-height: 1.55; margin-bottom: 32px; }
+  .bk-card {
+    background: var(--slate-well); border: 1px solid var(--storm); border-radius: 16px;
+    padding: 24px; margin-bottom: 20px;
+  }
+  .bk-card-title { font-size: 16px; font-weight: 600; color: var(--cold-white); margin-bottom: 6px; }
+  .bk-card-sub { font-size: 13px; color: var(--fog); margin-bottom: 16px; line-height: 1.5; }
+  .bk-textarea {
+    width: 100%; min-height: 120px; background: var(--storm); border: 1.5px solid var(--storm);
+    border-radius: 12px; padding: 12px 14px; font-family: 'SF Mono', Menlo, monospace; font-size: 12px;
+    color: var(--cold-white); outline: none; resize: vertical; transition: border-color 150ms ease;
+    margin-bottom: 14px;
+  }
+  .bk-textarea:focus { border-color: var(--turquoise); }
+  .bk-btn-row { display: flex; gap: 10px; }
+  .bk-note { font-size: 13px; color: var(--turquoise); margin-top: 10px; min-height: 16px; }
+  .bk-note.error { color: var(--salmon); }
+</style>
+</head>
+<body>
+
+<div class="bk-wrap">
+  <a class="bk-back" href="today.html">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+    Back
+  </a>
+  <div class="bk-title">Backup &amp; Sync</div>
+  <div class="bk-sub">
+    Portia stores your data locally in this browser only — your desktop and phone don't share data automatically.
+    Use this page to move your library, logs, and goals from one device to another.
+  </div>
+
+  <div class="bk-card">
+    <div class="bk-card-title">Export from this device</div>
+    <div class="bk-card-sub">Copy this code, then paste it into the Import box on the other device.</div>
+    <textarea class="bk-textarea" id="export-box" readonly></textarea>
+    <button class="btn-primary" id="copy-btn" style="width:auto; padding:12px 20px;">Copy to clipboard</button>
+    <div class="bk-note" id="copy-note"></div>
+  </div>
+
+  <div class="bk-card">
+    <div class="bk-card-title">Import to this device</div>
+    <div class="bk-card-sub">Pasting a backup code here replaces everything currently stored on this device — items, recipes, logs, goals, and streak.</div>
+    <textarea class="bk-textarea" id="import-box" placeholder="Paste your backup code here..."></textarea>
+    <div class="bk-btn-row">
+      <button class="btn-primary" id="restore-btn" style="width:auto; padding:12px 20px;">Restore on this device</button>
+    </div>
+    <div class="bk-note" id="restore-note"></div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'portia-data';
+
+  const exportBox = document.getElementById('export-box');
+  const copyBtn = document.getElementById('copy-btn');
+  const copyNote = document.getElementById('copy-note');
+  const importBox = document.getElementById('import-box');
+  const restoreBtn = document.getElementById('restore-btn');
+  const restoreNote = document.getElementById('restore-note');
+
+  exportBox.value = localStorage.getItem(STORAGE_KEY) || '';
+
+  copyBtn.addEventListener('click', () => {
+    exportBox.select();
+    navigator.clipboard.writeText(exportBox.value).then(() => {
+      copyNote.textContent = 'Copied ✓';
+      copyNote.classList.remove('error');
+      setTimeout(() => { copyNote.textContent = ''; }, 2500);
+    }).catch(() => {
+      copyNote.textContent = 'Could not copy — select the text and copy it manually.';
+      copyNote.classList.add('error');
+    });
+  });
+
+  restoreBtn.addEventListener('click', () => {
+    const raw = importBox.value.trim();
+    if (!raw) {
+      restoreNote.textContent = 'Paste a backup code first.';
+      restoreNote.classList.add('error');
+      return;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      restoreNote.textContent = 'That doesn\'t look like a valid backup code.';
+      restoreNote.classList.add('error');
+      return;
+    }
+    if (!parsed.items || !parsed.logs || !parsed.goals) {
+      restoreNote.textContent = 'That code is missing expected Portia data — double check you copied the whole thing.';
+      restoreNote.classList.add('error');
+      return;
+    }
+    const ok = window.confirm('This replaces everything currently stored on this device. Continue?');
+    if (!ok) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    restoreNote.textContent = 'Restored ✓ Redirecting...';
+    restoreNote.classList.remove('error');
+    const isMobileDevice = /iPhone|iPod|Android.*Mobile/i.test(navigator.userAgent) || window.innerWidth <= 480;
+    setTimeout(() => { window.location.href = isMobileDevice ? 'mobile.html' : 'today.html'; }, 900);
+  });
+</script>
+
+</body>
+</html>

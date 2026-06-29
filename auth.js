@@ -5,5 +5,10 @@
 (function () {
   if (localStorage.getItem('portia_auth') !== 'true') {
     window.location.replace('login.html');
+    return;
+  }
+  const isMobileDevice = /iPhone|iPod|Android.*Mobile/i.test(navigator.userAgent) || window.innerWidth <= 480;
+  if (isMobileDevice) {
+    window.location.replace('mobile.html');
   }
 })();

@@ -56,8 +56,13 @@
   <script>
     const PORTIA_PASSWORD = 'qX7!vL2m@kR9wZpF';
 
+    function isMobileDevice() {
+      return /iPhone|iPod|Android.*Mobile/i.test(navigator.userAgent) || window.innerWidth <= 480;
+    }
+    const homePage = isMobileDevice() ? 'mobile.html' : 'today.html';
+
     if (localStorage.getItem('portia_auth') === 'true') {
-      window.location.replace('today.html');
+      window.location.replace(homePage);
     }
 
     const form = document.getElementById('login-form');
@@ -68,7 +73,7 @@
       e.preventDefault();
       if (input.value === PORTIA_PASSWORD) {
         localStorage.setItem('portia_auth', 'true');
-        window.location.href = 'today.html';
+        window.location.href = homePage;
       } else {
         errorEl.textContent = 'Incorrect password.';
         input.value = '';

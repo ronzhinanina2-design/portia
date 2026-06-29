@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="data.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
 <style>
   body { margin: 0; background: #141B24; }
   * { box-sizing: border-box; }
@@ -257,11 +258,97 @@
     opacity: 0; transform: translateY(14px);
   }
   .toast.visible { opacity: 1; transform: translateY(0); }
+
+  .btn-scan {
+    position: absolute; top: 20px; right: 20px; z-index: 40;
+    width: 40px; height: 40px; border-radius: 11px;
+    background: #1C2733; border: 1px solid #2A3A4A;
+    display: flex; align-items: center; justify-content: center;
+    color: #8B9BAD; cursor: pointer;
+    transition: color 150ms ease, transform 80ms ease;
+  }
+  .btn-scan:active { color: #2ABFAD; transform: scale(0.9); }
+
+  .camera-screen {
+    position: fixed; inset: 0; z-index: 100; background: #05080c;
+    overflow: hidden;
+  }
+  .camera-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .camera-mask {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .scan-window { position: relative; width: 78%; max-width: 340px; aspect-ratio: 16/10; border-radius: 18px;
+    box-shadow: 0 0 0 9999px rgba(5,8,12,0.55);
+  }
+  .scan-corner { position: absolute; width: 26px; height: 26px; border: 2.5px solid #2ABFAD; }
+  .scan-corner.tl { top: -2px; left: -2px; border-right: none; border-bottom: none; border-radius: 8px 0 0 0; }
+  .scan-corner.tr { top: -2px; right: -2px; border-left: none; border-bottom: none; border-radius: 0 8px 0 0; }
+  .scan-corner.bl { bottom: -2px; left: -2px; border-right: none; border-top: none; border-radius: 0 0 0 8px; }
+  .scan-corner.br { bottom: -2px; right: -2px; border-left: none; border-top: none; border-radius: 0 0 8px 0; }
+  .scan-line {
+    position: absolute; left: 6%; right: 6%; height: 2px; background: #2ABFAD; opacity: 0.3; border-radius: 2px;
+    animation: scanSweep 2.2s ease-in-out infinite;
+  }
+  @keyframes scanSweep {
+    0%   { top: 12%; }
+    50%  { top: 85%; }
+    100% { top: 12%; }
+  }
+  .scan-label {
+    margin-top: 22px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #8B9BAD;
+  }
+  .camera-close {
+    position: absolute; top: 56px; left: 20px; z-index: 110;
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    color: #8B9BAD; background: rgba(28,39,51,0.7); border: 1px solid rgba(255,255,255,0.1);
+  }
+  .camera-close:active { transform: scale(0.9); }
+
+  .scan-eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #8B9BAD; margin-bottom: 8px;
+  }
+  .scan-name { font-size: 22px; font-weight: 600; color: #E8EDF2; letter-spacing: -0.01em; }
+  .scan-macros-row { font-size: 13px; color: #8B9BAD; margin-top: 6px; }
+
+  .cta-btn-ghost {
+    width: 100%; background: transparent; border: 1.5px solid #E8EDF2; color: #E8EDF2;
+    font-family: Inter, sans-serif; font-size: 16px; font-weight: 600;
+    padding: 16px; border-radius: 13px; cursor: pointer;
+    transition: background 150ms ease, transform 80ms ease;
+  }
+  .cta-btn-ghost:active { transform: scale(0.985); background: rgba(255,255,255,0.05); }
+
+  .notfound-icon {
+    width: 64px; height: 64px; border-radius: 16px; background: #1C2733; border: 1px solid #2A3A4A;
+    display: flex; align-items: center; justify-content: center; color: #8B9BAD;
+    margin: 0 auto 20px;
+  }
+  .notfound-heading { font-size: 19px; font-weight: 600; color: #E8EDF2; text-align: center; }
+  .notfound-body { font-size: 14px; color: #8B9BAD; text-align: center; margin-top: 8px; line-height: 1.5; }
+
+  .scan-portion-grid { display: flex; gap: 8px; }
+  .scan-portion-card {
+    flex: 1; text-align: center; padding: 16px 8px; border-radius: 12px;
+    border: 1px solid #34465A; color: #8B9BAD; cursor: pointer; background: transparent;
+  }
+  .scan-portion-card.on { border-color: #2ABFAD; color: #2ABFAD; }
+  .scan-portion-card .spc-label { font-size: 14px; font-weight: 600; }
+  .scan-portion-card .spc-kcal { font-size: 12px; margin-top: 4px; }
 </style>
 </head>
 <body>
 
 <div id="home">
+  <div class="btn-scan" id="btn-scan" title="Scan barcode">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3"></path>
+    </svg>
+  </div>
+
   <div class="ring-card">
     <div class="ring-label">Calories</div>
     <div class="ring-wrap">
@@ -287,6 +374,7 @@
 </div>
 
 <div id="modal-root"></div>
+<div id="camera-root"></div>
 <div id="toast-root"></div>
 
 <script>
@@ -311,6 +399,7 @@
     modal: null, step: 1, activeSlot: 'lunch',
     search: '', activeTags: [], selected: {}, order: [],
     itemName: '', itemTags: [], macros: {},
+    scanStep: null, scanProduct: null, scanSel: { portion: null, customG: '' },
   };
 
   const fmt = n => n.toLocaleString('en-US');
@@ -355,6 +444,177 @@
     state.modal = null;
     mountedModalKey = null;
     document.getElementById('modal-root').innerHTML = '';
+  }
+
+  /* ============ Barcode scanner ============ */
+
+  let codeReader = null;
+  let scanLocked = false;
+
+  function openCamera() {
+    const root = document.getElementById('camera-root');
+    root.innerHTML = `
+      <div class="camera-screen">
+        <video id="scan-video" class="camera-video" muted playsinline></video>
+        <div class="camera-close" id="camera-close">${closeIconSvg()}</div>
+        <div class="camera-mask">
+          <div class="scan-window">
+            <div class="scan-corner tl"></div>
+            <div class="scan-corner tr"></div>
+            <div class="scan-corner bl"></div>
+            <div class="scan-corner br"></div>
+            <div class="scan-line"></div>
+          </div>
+          <div class="scan-label">Point at a barcode</div>
+        </div>
+      </div>
+    `;
+    document.getElementById('camera-close').addEventListener('click', closeCamera);
+
+    scanLocked = false;
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    codeReader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } },
+      'scan-video',
+      (result, err) => {
+        if (result && !scanLocked) {
+          scanLocked = true;
+          onBarcodeDecoded(result.getText());
+        }
+      }
+    ).catch(() => {
+      closeCamera();
+      showToast('Camera unavailable');
+    });
+  }
+
+  function closeCamera() {
+    if (codeReader) {
+      try { codeReader.reset(); } catch (e) {}
+      codeReader = null;
+    }
+    document.getElementById('camera-root').innerHTML = '';
+  }
+
+  function onBarcodeDecoded(barcode) {
+    closeCamera();
+    fetchProduct(barcode);
+  }
+
+  function fetchProduct(barcode) {
+    fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,nutriments`)
+      .then(r => r.json())
+      .then(data => {
+        const p = data && data.product;
+        const n = p && p.nutriments;
+        const hasMacros = n && (n['energy-kcal_100g'] != null || n.proteins_100g != null);
+        if (data.status === 1 && p && hasMacros) {
+          openScanResult({
+            name: p.product_name || 'Unknown product',
+            kcal: Math.round(n['energy-kcal_100g'] || 0),
+            protein: Math.round(n.proteins_100g || 0),
+            carbs: Math.round(n.carbohydrates_100g || 0),
+            fat: Math.round(n.fat_100g || 0),
+          });
+        } else {
+          openScanNotFound();
+        }
+      })
+      .catch(() => openScanNotFound());
+  }
+
+  function openScanResult(product) {
+    state.modal = 'scan';
+    state.scanStep = 'result';
+    state.scanProduct = { name: product.name, macros: { kcal: String(product.kcal), protein: String(product.protein), fat: String(product.fat), carbs: String(product.carbs) }, tags: [] };
+    state.scanSel = { portion: null, customG: '' };
+    renderModal();
+  }
+
+  function openScanNotFound() {
+    state.modal = 'scan';
+    state.scanStep = 'notfound';
+    state.scanProduct = null;
+    renderModal();
+  }
+
+  function setScanMacro(k, v) {
+    const clean = String(v).replace(/[^0-9]/g, '');
+    state.scanProduct.macros[k] = clean;
+    renderModal();
+  }
+  function toggleScanTag(t) {
+    const tags = state.scanProduct.tags;
+    state.scanProduct.tags = tags.includes(t) ? tags.filter(x => x !== t) : [...tags, t];
+    renderModal();
+  }
+  function setScanPortion(p) {
+    state.scanSel = { ...state.scanSel, portion: p };
+    renderModal();
+  }
+  function setScanCustomG(v) {
+    const clean = String(v).replace(/[^0-9]/g, '');
+    state.scanSel = { portion: 'custom', customG: clean };
+    renderModal();
+  }
+
+  function buildScanItem() {
+    const m = state.scanProduct.macros;
+    return {
+      name: state.scanProduct.name,
+      kcal: Number(m.kcal) || 0,
+      protein: Number(m.protein) || 0,
+      fat: Number(m.fat) || 0,
+      carbs: Number(m.carbs) || 0,
+      wholeG: 100,
+      tags: state.scanProduct.tags,
+      imageUrl: null,
+    };
+  }
+
+  function saveScanToLibraryOnly() {
+    Data.addItem(buildScanItem());
+    items = Data.getItems();
+    closeModal();
+    showToast('Saved to library');
+  }
+
+  function gotoScanPortion() {
+    state.scanStep = 'portion';
+    renderModal();
+  }
+
+  function backToScanResult() {
+    state.scanStep = 'result';
+    renderModal();
+  }
+
+  function confirmScanPortionAndLog() {
+    const sel = state.scanSel;
+    if (!sel.portion) return;
+    if (sel.portion === 'custom' && !(Number(sel.customG) > 0)) return;
+    const newItem = Data.addItem(buildScanItem());
+    items = Data.getItems();
+    const grams = sel.portion === 'whole' ? 100 : sel.portion === 'half' ? 50 : Number(sel.customG);
+    const kcal = Math.round((newItem.kcal * grams) / 100);
+    const protein = Math.round((newItem.protein * grams) / 100);
+    const entry = { itemId: newItem.id, portion: sel.portion, grams, kcal, protein };
+    const existing = Data.getLogForSlot(todayStr, 'snack');
+    const combined = existing ? [...existing.entries, entry] : [entry];
+    Data.setLogForSlot(todayStr, 'snack', combined);
+    closeModal();
+    renderRing(true);
+    showToast('Logged and saved to library');
+  }
+
+  function scanAgain() {
+    closeModal();
+    openCamera();
+  }
+
+  function addManuallyFromNotFound() {
+    closeModal();
+    openAddModal();
   }
 
   function toggleItem(id) {
@@ -452,7 +712,10 @@
       mountedModalKey = null;
       return;
     }
-    const innerHtml = state.modal === 'log' ? (state.step === 1 ? logStep1Html() : logStep2Html()) : addItemHtml();
+    let innerHtml;
+    if (state.modal === 'log') innerHtml = state.step === 1 ? logStep1Html() : logStep2Html();
+    else if (state.modal === 'scan') innerHtml = state.scanStep === 'result' ? scanResultHtml() : state.scanStep === 'notfound' ? scanNotFoundHtml() : scanPortionHtml();
+    else innerHtml = addItemHtml();
     if (mountedModalKey !== state.modal) {
       root.innerHTML = `<div class="sheet">${innerHtml}</div>`;
       mountedModalKey = state.modal;
@@ -577,6 +840,94 @@
       </div>`;
   }
 
+  function scanResultHtml() {
+    const p = state.scanProduct;
+    return `<div class="sheet-inner">
+        <div class="sheet-header">
+          <span class="sheet-title">Scanned item</span>
+          <div class="icon-btn-close" id="m-close">${closeIconSvg()}</div>
+        </div>
+        <div class="add-content">
+          <div class="scan-eyebrow">Scanned item</div>
+          <div class="scan-name">${p.name}</div>
+          <div class="scan-macros-row">${p.macros.kcal || 0} kcal · ${p.macros.protein || 0}g protein</div>
+          <div class="field-label spaced" style="margin-top:24px;">Macros per 100g</div>
+          <div class="macro-grid">
+            ${MACROS.map(([k, label]) => `<div class="macro-cell">
+              <div class="macro-label">${label}</div>
+              <input class="macro-input" data-scanmacro="${k}" placeholder="0" value="${p.macros[k] || ''}" />
+            </div>`).join('')}
+          </div>
+          <div class="field-label spaced">Tags</div>
+          <div class="tags-wrap">
+            ${allTags().map(t => `<div class="chip ${p.tags.includes(t) ? 'active' : ''}" data-scantag="${t}">${t}</div>`).join('')}
+          </div>
+        </div>
+        <div class="sheet-footer">
+          <button class="cta-btn on" id="m-scan-log" style="margin-bottom:12px;">Log and save to library</button>
+          <button class="cta-btn-ghost" id="m-scan-save">Save to library</button>
+        </div>
+      </div>`;
+  }
+
+  function scanNotFoundHtml() {
+    return `<div class="sheet-inner">
+        <div class="sheet-header">
+          <span class="sheet-title">Not found</span>
+          <div class="icon-btn-close" id="m-close">${closeIconSvg()}</div>
+        </div>
+        <div class="add-content" style="display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1;">
+          <div class="notfound-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="11" r="2"></circle><path d="M21 16l-5-4-9 7"></path></svg>
+          </div>
+          <div class="notfound-heading">Product not found</div>
+          <div class="notfound-body">This item isn't in the database yet.<br/>You can add it manually.</div>
+        </div>
+        <div class="sheet-footer">
+          <button class="cta-btn on" id="m-notfound-manual" style="margin-bottom:12px;">Add manually</button>
+          <button class="cta-btn-ghost" id="m-notfound-again">Scan again</button>
+        </div>
+      </div>`;
+  }
+
+  function scanPortionHtml() {
+    const sel = state.scanSel;
+    const p = state.scanProduct;
+    const kcal100 = Number(p.macros.kcal) || 0;
+    const logOk = sel.portion === 'whole' || sel.portion === 'half' || (sel.portion === 'custom' && Number(sel.customG) > 0);
+    return `<div class="sheet-inner">
+        <div class="sheet-header with-back">
+          <div class="icon-btn-back" id="m-back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></div>
+          <span class="sheet-title flex1">How much did you have?</span>
+          <div class="icon-btn-close" id="m-close">${closeIconSvg()}</div>
+        </div>
+        <div class="add-content">
+          <div class="scan-macros-row" style="margin-bottom:18px;">${p.name}</div>
+          <div class="scan-portion-grid">
+            <div class="scan-portion-card ${sel.portion === 'whole' ? 'on' : ''}" data-scanportion="whole">
+              <div class="spc-label">Whole</div>
+              <div class="spc-kcal">${kcal100} kcal</div>
+            </div>
+            <div class="scan-portion-card ${sel.portion === 'half' ? 'on' : ''}" data-scanportion="half">
+              <div class="spc-label">Half</div>
+              <div class="spc-kcal">${Math.round(kcal100 / 2)} kcal</div>
+            </div>
+            <div class="scan-portion-card ${sel.portion === 'custom' ? 'on' : ''}" data-scanportion="custom">
+              <div class="spc-label">Custom</div>
+              <div class="spc-kcal">grams</div>
+            </div>
+          </div>
+          ${sel.portion === 'custom' ? `<div class="portion-custom-row" style="margin-top:14px;">
+            <input class="portion-custom-input" id="m-scan-customg" placeholder="0" value="${sel.customG}" />
+            <span class="portion-grams-label">grams</span>
+          </div>` : ''}
+        </div>
+        <div class="sheet-footer">
+          <button class="cta-btn ${logOk ? 'on' : 'off'}" id="m-scan-confirm" ${logOk ? '' : 'disabled'}>Log meal</button>
+        </div>
+      </div>`;
+  }
+
   function addItemHtml() {
     const saveOk = state.itemName.trim().length > 0;
     return `<div class="sheet-inner">
@@ -653,10 +1004,39 @@
       const saveBtn = root.querySelector('#m-save');
       if (saveBtn && !saveBtn.disabled) saveBtn.addEventListener('click', saveItem);
     }
+
+    if (state.modal === 'scan' && state.scanStep === 'result') {
+      root.querySelectorAll('[data-scanmacro]').forEach(el => {
+        el.addEventListener('input', e => { setScanMacro(el.dataset.scanmacro, e.target.value); root.querySelector(`[data-scanmacro="${el.dataset.scanmacro}"]`).focus(); });
+      });
+      root.querySelectorAll('[data-scantag]').forEach(el => el.addEventListener('click', () => toggleScanTag(el.dataset.scantag)));
+      const logBtn = root.querySelector('#m-scan-log');
+      if (logBtn) logBtn.addEventListener('click', gotoScanPortion);
+      const saveBtn = root.querySelector('#m-scan-save');
+      if (saveBtn) saveBtn.addEventListener('click', saveScanToLibraryOnly);
+    }
+
+    if (state.modal === 'scan' && state.scanStep === 'notfound') {
+      const manualBtn = root.querySelector('#m-notfound-manual');
+      if (manualBtn) manualBtn.addEventListener('click', addManuallyFromNotFound);
+      const againBtn = root.querySelector('#m-notfound-again');
+      if (againBtn) againBtn.addEventListener('click', scanAgain);
+    }
+
+    if (state.modal === 'scan' && state.scanStep === 'portion') {
+      const backBtn = root.querySelector('#m-back');
+      if (backBtn) backBtn.addEventListener('click', backToScanResult);
+      root.querySelectorAll('[data-scanportion]').forEach(el => el.addEventListener('click', () => setScanPortion(el.dataset.scanportion)));
+      const customInput = root.querySelector('#m-scan-customg');
+      if (customInput) customInput.addEventListener('input', e => { setScanCustomG(e.target.value); root.querySelector('#m-scan-customg').focus(); });
+      const confirmBtn = root.querySelector('#m-scan-confirm');
+      if (confirmBtn && !confirmBtn.disabled) confirmBtn.addEventListener('click', confirmScanPortionAndLog);
+    }
   }
 
   document.getElementById('btn-log-meal').addEventListener('click', openLogModal);
   document.getElementById('btn-add-item').addEventListener('click', openAddModal);
+  document.getElementById('btn-scan').addEventListener('click', openCamera);
 
   renderRing(true);
 })();

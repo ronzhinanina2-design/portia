@@ -70,7 +70,7 @@ const Data = {
   },
   addItem(item) {
     const data = loadData();
-    const newItem = { ...item, id: uid('item'), createdAt: new Date().toISOString().slice(0, 10) };
+    const newItem = { favourite: false, ...item, id: uid('item'), createdAt: new Date().toISOString().slice(0, 10) };
     data.items.push(newItem);
     saveData(data);
     return newItem;
@@ -88,6 +88,14 @@ const Data = {
     data.items = data.items.filter((i) => i.id !== id);
     saveData(data);
   },
+  toggleItemFavourite(id) {
+    const data = loadData();
+    const idx = data.items.findIndex((i) => i.id === id);
+    if (idx === -1) return null;
+    data.items[idx] = { ...data.items[idx], favourite: !data.items[idx].favourite };
+    saveData(data);
+    return data.items[idx];
+  },
 
   // ---- recipes ----
   getRecipes() {
@@ -98,7 +106,7 @@ const Data = {
   },
   addRecipe(recipe) {
     const data = loadData();
-    const newRecipe = { ...recipe, id: uid('recipe'), createdAt: new Date().toISOString().slice(0, 10) };
+    const newRecipe = { favourite: false, ...recipe, id: uid('recipe'), createdAt: new Date().toISOString().slice(0, 10) };
     data.recipes.push(newRecipe);
     saveData(data);
     return newRecipe;
@@ -111,6 +119,14 @@ const Data = {
     saveData(data);
     return data.recipes[idx];
   },
+  toggleRecipeFavourite(id) {
+    const data = loadData();
+    const idx = data.recipes.findIndex((r) => r.id === id);
+    if (idx === -1) return null;
+    data.recipes[idx] = { ...data.recipes[idx], favourite: !data.recipes[idx].favourite };
+    saveData(data);
+    return data.recipes[idx];
+  },
   deleteRecipe(id) {
     const data = loadData();
     data.recipes = data.recipes.filter((r) => r.id !== id);
@@ -120,6 +136,9 @@ const Data = {
   // ---- logs ----
   getLogsForDate(date) {
     return loadData().logs.filter((l) => l.date === date);
+  },
+  getAllLogs() {
+    return loadData().logs;
   },
   getLogForSlot(date, slot) {
     return loadData().logs.find((l) => l.date === date && l.slot === slot) || null;

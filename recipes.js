@@ -276,6 +276,10 @@ function renderGridAndEmpty(isItems) {
     const tagChipsHtml = shownTags.map((t) => `<span style="font-size:11px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:3px 9px; border-radius:6px;">${escapeHtmlRc(t)}</span>`).join('') + extra;
 
     const borderStyle = broken ? 'border:1px solid rgba(232,184,0,0.4);' : 'border:1px solid #2A3A4A;';
+    const fav = !!x.favourite;
+    const favHeartSvg = fav
+      ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="#2ABFAD" stroke="#2ABFAD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.7 2 5 5.6 5c2 0 3.4 1 4.4 2.6C11 5.9 12.4 5 14.4 5 18 5 19.4 8.7 22 11.9 19.5 16.4 12 21 12 21z"></path></svg>`
+      : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8EDF2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.7 2 5 5.6 5c2 0 3.4 1 4.4 2.6C11 5.9 12.4 5 14.4 5 18 5 19.4 8.7 22 11.9 19.5 16.4 12 21 12 21z"></path></svg>`;
 
     return `
       <div class="rc-card" data-action="open-detail" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" style="position:relative; background:#1C2733; ${borderStyle} border-radius:16px; overflow:hidden; cursor:pointer; transition:transform 0.12s ease, border-color 0.15s ease;">
@@ -292,6 +296,9 @@ function renderGridAndEmpty(isItems) {
               Recipe
             </div>
           ` : ''}
+          <div class="rc-fav-btn" data-action="toggle-fav" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" style="position:absolute; bottom:10px; right:10px; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.55); border:1px solid rgba(255,255,255,0.1); cursor:pointer; transition:border-color 150ms ease, transform 80ms ease;">
+            ${favHeartSvg}
+          </div>
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>
         </div>
         <div style="padding:13px 14px 15px;">
@@ -732,6 +739,10 @@ document.addEventListener('click', (e) => {
     case 'set-tag': setRcState({ activeTag: target.dataset.tag }); break;
     case 'add-primary': openForm(rcState.tab === 'items' ? 'item' : 'recipe', null); break;
     case 'open-detail': openDetail(type, id); break;
+    case 'toggle-fav':
+      if (type === 'item') Data.toggleItemFavourite(id); else Data.toggleRecipeFavourite(id);
+      renderRecipes();
+      break;
     case 'close-panel': closePanelRc(); break;
     case 'edit-from-detail': openForm(type, id); break;
     case 'ask-delete': askDelete(type, id, target.dataset.name); break;

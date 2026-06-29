@@ -44,8 +44,46 @@ function setState(patch) {
   render();
 }
 
-function itemById(id) {
-  return Data.getItemById(id);
+function recipeTotals(r) {
+  let kcal = 0, protein = 0, grams = 0, broken = false;
+  for (const ing of r.ingredients) {
+    const it = Data.getItemById(ing.itemId);
+    if (!it) { broken = true; continue; }
+    kcal += Math.round((it.kcal * ing.grams) / 100);
+    protein += Math.round((it.protein * ing.grams) / 100);
+    grams += ing.grams;
+  }
+  return { kcal, protein, grams: grams || 100, broken };
+}
+
+// Resolves an id against both items and recipes, returning a normalized
+// shape with per-100g kcal/protein + wholeG so existing portion math
+// (calc/wholePortionKcal/etc) works unmodified for either source.
+function libItemById(id) {
+  const it = Data.getItemById(id);
+  if (it) return { id: it.id, name: it.name, tags: it.tags, kcal: it.kcal, protein: it.protein, wholeG: it.wholeG || 100, isRecipe: false, favourite: !!it.favourite };
+  const r = Data.getRecipeById(id);
+  if (!r) return null;
+  const t = recipeTotals(r);
+  return { id: r.id, name: r.name, tags: r.tags, kcal: (t.kcal / t.grams) * 100, protein: (t.protein / t.grams) * 100, wholeG: t.grams, isRecipe: true, broken: t.broken, favourite: !!r.favourite };
+}
+
+function fullLibrary() {
+  const items = Data.getItems().map((i) => libItemById(i.id));
+  const recipes = Data.getRecipes().map((r) => libItemById(r.id)).filter((r) => r && !r.broken);
+  return [...items, ...recipes];
+}
+
+function recentLibraryIds(limit) {
+  const logs = Data.getAllLogs().slice().sort((a, b) => b.date.localeCompare(a.date));
+  const seen = [];
+  for (const log of logs) {
+    for (const entry of log.entries) {
+      if (!seen.includes(entry.itemId)) seen.push(entry.itemId);
+      if (seen.length >= limit) return seen;
+    }
+  }
+  return seen;
 }
 
 function isConfirmed(sel) {
@@ -73,7 +111,7 @@ function summarizeSlot(slot) {
   let kcal = 0, protein = 0;
   const names = [];
   for (const entry of log.entries) {
-    const lib = itemById(entry.itemId);
+    const lib = libItemById(entry.itemId);
     if (!lib) continue;
     kcal += entry.kcal;
     protein += entry.protein;
@@ -95,7 +133,7 @@ function openModal(slot) {
     const selected = {};
     const order = [];
     for (const entry of log.entries) {
-      const lib = itemById(entry.itemId);
+      const lib = libItemById(entry.itemId);
       const wholeG = lib ? lib.wholeG || 100 : 100;
       const portion = entry.portion || (entry.grams === wholeG ? 'whole' : entry.grams === wholeG / 2 ? 'half' : 'custom');
       selected[entry.itemId] = { portion, customG: portion === 'custom' ? String(entry.grams) : '' };
@@ -175,7 +213,7 @@ function saveMeal() {
     Data.clearLogForSlot(TODAY_DATE, s.modalSlot);
   } else {
     const entries = s.order.map((id) => {
-      const lib = itemById(id);
+      const lib = libItemById(id);
       const sel = s.selected[id];
       const c = calc(lib, sel) || { kcal: wholePortionKcal(lib), protein: wholePortionProtein(lib) };
       const grams = gramsForSelection(lib, sel);
@@ -464,9 +502,9 @@ function renderModal() {
   const slotTitle = editMode ? `Edit ${cap(s.modalSlot)}` : `Log ${cap(s.modalSlot)}`;
   const step1 = s.step === 1;
   const step2 = s.step === 2;
-  const library = Data.getItems();
-  const recentsIds = library.slice(0, 3).map((i) => i.id);
-  const favouritesIds = library.slice(3, 6).map((i) => i.id);
+  const library = fullLibrary();
+  const recentsIds = recentLibraryIds(6).filter((id) => library.some((x) => x.id === id));
+  const favouritesIds = library.filter((x) => x.favourite).map((x) => x.id);
 
   const counterBase = 'width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;';
   const makeRow = (it) => {
@@ -477,10 +515,13 @@ function renderModal() {
     const icon = selected
       ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>`
       : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>`;
+    const recipeBadge = it.isRecipe
+      ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px; flex-shrink:0;"><path d="M6 3.5h12v17l-6-4-6 4z"></path></svg>`
+      : '';
     return `
       <div data-action="toggle-item" data-id="${it.id}" style="display:flex; align-items:center; gap:14px; padding:12px 8px; margin:0 -6px; border-radius:8px; border-bottom:1px solid rgba(42,58,74,0.5); cursor:pointer; transition:background 150ms ease;" onmouseover="this.style.background='#233040'" onmouseout="this.style.background='transparent'">
         <div style="flex:1; min-width:0;">
-          <div style="font-size:15px; font-weight:500; color:#E8EDF2;">${escapeHtml(it.name)}</div>
+          <div style="display:flex; align-items:center; font-size:15px; font-weight:500; color:#E8EDF2;">${recipeBadge}${escapeHtml(it.name)}</div>
           <div style="font-size:12px; color:#8B9BAD; margin-top:2px;">${escapeHtml(it.tags.join(' · '))}</div>
         </div>
         <div style="text-align:right; flex-shrink:0;">
@@ -501,11 +542,17 @@ function renderModal() {
 
   let listHtml = '';
   if (showSections) {
+    const recentsHtml = recentsIds.length
+      ? `<div class="section-label" style="margin:4px 0 6px;">Recents</div>${recentsIds.map((id) => makeRow(libItemById(id))).join('')}`
+      : '';
+    const favouritesHtml = favouritesIds.length
+      ? `<div class="section-label" style="margin:18px 0 6px;">Favourites</div>${favouritesIds.map((id) => makeRow(libItemById(id))).join('')}`
+      : '';
     listHtml = `
-      <div class="section-label" style="margin:4px 0 6px;">Recents</div>
-      ${recentsIds.map((id) => makeRow(itemById(id))).join('')}
-      <div class="section-label" style="margin:18px 0 6px;">Favourites</div>
-      ${favouritesIds.map((id) => makeRow(itemById(id))).join('')}
+      ${recentsHtml}
+      ${favouritesHtml}
+      <div class="section-label" style="margin:18px 0 6px;">All items</div>
+      ${library.map(makeRow).join('')}
     `;
   } else if (hasResults) {
     listHtml = filtered.map(makeRow).join('');
@@ -528,7 +575,7 @@ function renderModal() {
         <div class="section-label" style="margin:0 0 8px;">Currently logged</div>
         <div style="display:flex; flex-wrap:wrap; gap:8px;">
           ${s.originalIds.map((id) => {
-            const it = itemById(id);
+            const it = libItemById(id);
             const sel = s.selected[id] || { portion: 'whole', customG: '' };
             const grams = Math.round(gramsForSelection(it, sel) || it.wholeG || 100);
             const removing = s.removingIds.includes(id);
@@ -579,7 +626,7 @@ function renderModal() {
   const presetOn = presetBase + ' border:1px solid #2ABFAD; color:#2ABFAD; background:rgba(42,191,173,0.10);';
   const presetOff = presetBase + ' border:1px solid #34465A; color:#8B9BAD; background:transparent;';
   const portionRowsHtml = s.order.map((id) => {
-    const it = itemById(id);
+    const it = libItemById(id);
     const sel = s.selected[id];
     return `
       <div style="background:#2A3A4A; border:1px solid #34465A; border-radius:14px; padding:16px 18px;">
@@ -619,7 +666,7 @@ function renderModal() {
   // sidebar
   let totalK = 0, totalP = 0, allConfirmed = s.order.length > 0;
   const addedItemsHtml = s.order.map((id) => {
-    const it = itemById(id);
+    const it = libItemById(id);
     const c = calc(it, s.selected[id]);
     if (c) { totalK += c.kcal; totalP += c.protein; } else { allConfirmed = false; }
     const kcalStyle = c ? 'font-size:14px; font-weight:500; color:#E8EDF2;' : 'font-size:14px; font-weight:500; color:#5C6B7A;';

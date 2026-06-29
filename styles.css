@@ -341,6 +341,9 @@ input::placeholder { color: var(--fog-dark); }
 .icon-btn:hover { color: var(--cold-white); }
 .icon-btn:active { transform: scale(0.9); }
 
+.rc-fav-btn:hover { border-color: rgba(42,191,173,0.5) !important; }
+.rc-fav-btn:active { transform: scale(0.88); }
+
 /* ============ Segmented toggle ============ */
 
 .segmented {

@@ -86,8 +86,43 @@ function setWkState(patch) {
   renderWeek();
 }
 
+function recipeTotalsWk(r) {
+  let kcal = 0, protein = 0, grams = 0, broken = false;
+  for (const ing of r.ingredients) {
+    const it = Data.getItemById(ing.itemId);
+    if (!it) { broken = true; continue; }
+    kcal += Math.round((it.kcal * ing.grams) / 100);
+    protein += Math.round((it.protein * ing.grams) / 100);
+    grams += ing.grams;
+  }
+  return { kcal, protein, grams: grams || 100, broken };
+}
+
 function itemByIdWk(id) {
-  return Data.getItemById(id);
+  const it = Data.getItemById(id);
+  if (it) return { id: it.id, name: it.name, tags: it.tags, kcal: it.kcal, protein: it.protein, wholeG: it.wholeG || 100, isRecipe: false, favourite: !!it.favourite };
+  const r = Data.getRecipeById(id);
+  if (!r) return null;
+  const t = recipeTotalsWk(r);
+  return { id: r.id, name: r.name, tags: r.tags, kcal: (t.kcal / t.grams) * 100, protein: (t.protein / t.grams) * 100, wholeG: t.grams, isRecipe: true, broken: t.broken, favourite: !!r.favourite };
+}
+
+function fullLibraryWk() {
+  const items = Data.getItems().map((i) => itemByIdWk(i.id));
+  const recipes = Data.getRecipes().map((r) => itemByIdWk(r.id)).filter((r) => r && !r.broken);
+  return [...items, ...recipes];
+}
+
+function recentLibraryIdsWk(limit) {
+  const logs = Data.getAllLogs().slice().sort((a, b) => b.date.localeCompare(a.date));
+  const seen = [];
+  for (const log of logs) {
+    for (const entry of log.entries) {
+      if (!seen.includes(entry.itemId)) seen.push(entry.itemId);
+      if (seen.length >= limit) return seen;
+    }
+  }
+  return seen;
 }
 function isConfirmedWk(sel) {
   if (!sel || !sel.portion) return false;
@@ -504,9 +539,9 @@ function renderModalWk() {
   const slotTitle = `${editMode ? 'Edit' : 'Plan'} ${slotLabel}`;
   const step1 = s.step === 1;
   const step2 = s.step === 2;
-  const library = Data.getItems();
-  const recentsIds = library.slice(0, 3).map((i) => i.id);
-  const favouritesIds = library.slice(3, 6).map((i) => i.id);
+  const library = fullLibraryWk();
+  const recentsIds = recentLibraryIdsWk(6).filter((id) => library.some((x) => x.id === id));
+  const favouritesIds = library.filter((x) => x.favourite).map((x) => x.id);
 
   const counterBase = 'width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;';
   const makeRow = (it) => {
@@ -517,10 +552,13 @@ function renderModalWk() {
     const icon = selected
       ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>`
       : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>`;
+    const recipeBadge = it.isRecipe
+      ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px; flex-shrink:0;"><path d="M6 3.5h12v17l-6-4-6 4z"></path></svg>`
+      : '';
     return `
       <div data-action="toggle-item" data-id="${it.id}" style="display:flex; align-items:center; gap:14px; padding:12px 8px; margin:0 -6px; border-radius:8px; border-bottom:1px solid rgba(42,58,74,0.5); cursor:pointer; transition:background 150ms ease;" onmouseover="this.style.background='#233040'" onmouseout="this.style.background='transparent'">
         <div style="flex:1; min-width:0;">
-          <div style="font-size:15px; font-weight:500; color:#E8EDF2;">${escapeHtmlWk(it.name)}</div>
+          <div style="display:flex; align-items:center; font-size:15px; font-weight:500; color:#E8EDF2;">${recipeBadge}${escapeHtmlWk(it.name)}</div>
           <div style="font-size:12px; color:#8B9BAD; margin-top:2px;">${escapeHtmlWk(it.tags.join(' · '))}</div>
         </div>
         <div style="text-align:right; flex-shrink:0;">
@@ -541,11 +579,17 @@ function renderModalWk() {
 
   let listHtml = '';
   if (showSections) {
+    const recentsHtml = recentsIds.length
+      ? `<div class="section-label" style="margin:4px 0 6px;">Recents</div>${recentsIds.map((id) => makeRow(itemByIdWk(id))).join('')}`
+      : '';
+    const favouritesHtml = favouritesIds.length
+      ? `<div class="section-label" style="margin:18px 0 6px;">Favourites</div>${favouritesIds.map((id) => makeRow(itemByIdWk(id))).join('')}`
+      : '';
     listHtml = `
-      <div class="section-label" style="margin:4px 0 6px;">Recents</div>
-      ${recentsIds.map((id) => makeRow(itemByIdWk(id))).join('')}
-      <div class="section-label" style="margin:18px 0 6px;">Favourites</div>
-      ${favouritesIds.map((id) => makeRow(itemByIdWk(id))).join('')}
+      ${recentsHtml}
+      ${favouritesHtml}
+      <div class="section-label" style="margin:18px 0 6px;">All items</div>
+      ${library.map(makeRow).join('')}
     `;
   } else if (hasResults) {
     listHtml = filtered.map(makeRow).join('');

@@ -284,6 +284,14 @@ function scheduleUndoTimeout() {
   }, 10000);
 }
 
+let preStreakSnapshot = null;
+
+function yesterdayDateStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function pressDoneForToday(rect) {
   if (isDayLocked()) return;
   let consumedKcal = 0;
@@ -293,6 +301,16 @@ function pressDoneForToday(rect) {
   });
   const overLimit = consumedKcal > GOAL_KCAL;
   Data.setDayLock(TODAY_DATE, { locked: true, overLimit, lockedAt: Date.now() });
+
+  preStreakSnapshot = Data.getStreak();
+  const nextStreak = preStreakSnapshot.lastLoggedDate === yesterdayDateStr() ? preStreakSnapshot.currentStreak + 1 : 1;
+  Data.updateStreak({
+    currentStreak: nextStreak,
+    bestStreak: Math.max(preStreakSnapshot.bestStreak, nextStreak),
+    lastLoggedDate: TODAY_DATE,
+    totalDaysTracked: preStreakSnapshot.totalDaysTracked + 1,
+  });
+
   setState({ showUndo: true });
   if (overLimit) spawnRipple(rect); else spawnStars(rect);
   scheduleUndoTimeout();
@@ -301,6 +319,10 @@ function pressDoneForToday(rect) {
 function undoDoneForToday() {
   clearTimeout(undoTimeoutId);
   Data.clearDayLock(TODAY_DATE);
+  if (preStreakSnapshot) {
+    Data.updateStreak(preStreakSnapshot);
+    preStreakSnapshot = null;
+  }
   setState({ showUndo: false });
 }
 

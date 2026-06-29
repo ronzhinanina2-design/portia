@@ -792,3 +792,4 @@ document.addEventListener('keydown', (e) => {
 });
 
 renderRecipes();
+Data.ready().then(renderRecipes);

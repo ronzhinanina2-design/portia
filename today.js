@@ -1,8 +1,8 @@
 /* ============ Portia — Today tab ============ */
 
 const TODAY_DATE = new Date().toISOString().slice(0, 10);
-const GOAL_KCAL = Data.getGoals().calorieTarget;
-const GOAL_PROTEIN = Data.getGoals().proteinTarget;
+let GOAL_KCAL = Data.getGoals().calorieTarget;
+let GOAL_PROTEIN = Data.getGoals().proteinTarget;
 const SLOT_META = [
   ['breakfast', 'Breakfast'],
   ['lunch', 'Lunch'],
@@ -848,3 +848,8 @@ document.addEventListener('input', (e) => {
 });
 
 render();
+Data.ready().then(() => {
+  GOAL_KCAL = Data.getGoals().calorieTarget;
+  GOAL_PROTEIN = Data.getGoals().proteinTarget;
+  render();
+});

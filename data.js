@@ -40,7 +40,21 @@ function seedData() {
   return { items, recipes, logs, weight, goals, streak, dayLocks: {} };
 }
 
-function loadData() {
+/* ============ Supabase sync ============ */
+/* Single-row JSONB blob keeps the existing localStorage-shaped data model
+   unchanged — every Data.* method below still just calls loadData()/saveData()
+   exactly as before. localStorage remains a write-through cache so the app
+   keeps working instantly and offline; Supabase is the cross-device source
+   of truth that gets pushed to in the background on every write. */
+const SUPABASE_URL = 'https://ijtitwrxhswqdfcquqvq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqdGl0d3J4aHN3cWRmY3F1cXZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NTU1MDAsImV4cCI6MjA5ODMzMTUwMH0.WAWmR3ixO80Hf-5Pb6QmVIbYJs7xGTzOkBmIXSRlgM8';
+const APP_DATA_ROW_ID = 'main';
+
+const supabaseClient = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+function readLocalOrSeed() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
     try {
@@ -56,8 +70,52 @@ function loadData() {
   return seeded;
 }
 
+let cache = readLocalOrSeed();
+
+let resolveReady;
+const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
+
+function pushToRemote(data) {
+  if (!supabaseClient) return Promise.resolve();
+  return supabaseClient
+    .from('app_data')
+    .upsert({ id: APP_DATA_ROW_ID, data, updated_at: new Date().toISOString() })
+    .then(({ error }) => { if (error) console.warn('Supabase push failed', error); })
+    .catch((e) => console.warn('Supabase push failed', e));
+}
+
+async function syncFromRemote() {
+  if (!supabaseClient) { resolveReady(); return; }
+  try {
+    const { data: row, error } = await supabaseClient
+      .from('app_data')
+      .select('data')
+      .eq('id', APP_DATA_ROW_ID)
+      .maybeSingle();
+    if (error) throw error;
+    if (row && row.data) {
+      cache = row.data;
+      if (!cache.dayLocks) cache.dayLocks = {};
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+    } else {
+      await pushToRemote(cache);
+    }
+  } catch (e) {
+    console.warn('Supabase sync failed, using local cache', e);
+  } finally {
+    resolveReady();
+  }
+}
+syncFromRemote();
+
+function loadData() {
+  return cache;
+}
+
 function saveData(data) {
+  cache = data;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  pushToRemote(data);
 }
 
 const Data = {
@@ -207,5 +265,10 @@ const Data = {
     const data = loadData();
     delete data.dayLocks[date];
     saveData(data);
+  },
+
+  // ---- sync ----
+  ready() {
+    return readyPromise;
   },
 };

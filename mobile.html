@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="data.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
 <style>
@@ -401,7 +402,7 @@
   const MACROS = [['kcal', 'Calories'], ['protein', 'Protein'], ['fat', 'Fat'], ['carbs', 'Carbs']];
 
   let items = Data.getItems();
-  const goals = Data.getGoals();
+  let goals = Data.getGoals();
   const todayStr = new Date().toISOString().slice(0, 10);
 
   function consumedToday() {
@@ -1052,6 +1053,11 @@
   document.getElementById('btn-scan').addEventListener('click', openCamera);
 
   renderRing(true);
+  Data.ready().then(() => {
+    items = Data.getItems();
+    goals = Data.getGoals();
+    renderRing(true);
+  });
 })();
 </script>
 

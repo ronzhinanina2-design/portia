@@ -623,3 +623,4 @@ document.addEventListener('input', (e) => {
 });
 
 renderProgress();
+Data.ready().then(renderProgress);

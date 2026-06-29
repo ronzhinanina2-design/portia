@@ -1,6 +1,6 @@
 /* ============ Portia — Week tab ============ */
 
-const GOAL_KCAL_WK = Data.getGoals().calorieTarget;
+let GOAL_KCAL_WK = Data.getGoals().calorieTarget;
 const SLOT_META_WK = [
   ['breakfast', 'Breakfast'],
   ['lunch', 'Lunch'],
@@ -851,3 +851,7 @@ document.addEventListener('input', (e) => {
 });
 
 renderWeek();
+Data.ready().then(() => {
+  GOAL_KCAL_WK = Data.getGoals().calorieTarget;
+  renderWeek();
+});

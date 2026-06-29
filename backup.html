@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Portia — Backup &amp; Sync</title>
 <script src="auth.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
@@ -46,8 +47,8 @@
   </a>
   <div class="bk-title">Backup &amp; Sync</div>
   <div class="bk-sub">
-    Portia stores your data locally in this browser only — your desktop and phone don't share data automatically.
-    Use this page to move your library, logs, and goals from one device to another.
+    Portia syncs your data across devices automatically. This page is a manual safety net —
+    use it to restore from a saved code if something goes wrong, or to grab a copy for safekeeping.
   </div>
 
   <div class="bk-card">
@@ -71,6 +72,10 @@
 
 <script>
   const STORAGE_KEY = 'portia-data';
+  const SUPABASE_URL = 'https://ijtitwrxhswqdfcquqvq.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqdGl0d3J4aHN3cWRmY3F1cXZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NTU1MDAsImV4cCI6MjA5ODMzMTUwMH0.WAWmR3ixO80Hf-5Pb6QmVIbYJs7xGTzOkBmIXSRlgM8';
+  const APP_DATA_ROW_ID = 'main';
+  const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
   const exportBox = document.getElementById('export-box');
   const copyBtn = document.getElementById('copy-btn');
@@ -113,13 +118,35 @@
       restoreNote.classList.add('error');
       return;
     }
-    const ok = window.confirm('This replaces everything currently stored on this device. Continue?');
+    const ok = window.confirm('This replaces everything currently stored — on this device and, once synced, every device. Continue?');
     if (!ok) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-    restoreNote.textContent = 'Restored ✓ Redirecting...';
-    restoreNote.classList.remove('error');
-    const isMobileDevice = /iPhone|iPod|Android.*Mobile/i.test(navigator.userAgent) || window.innerWidth <= 480;
-    setTimeout(() => { window.location.href = isMobileDevice ? 'mobile.html' : 'today.html'; }, 900);
+    const goRedirect = () => {
+      const isMobileDevice = /iPhone|iPod|Android.*Mobile/i.test(navigator.userAgent) || window.innerWidth <= 480;
+      setTimeout(() => { window.location.href = isMobileDevice ? 'mobile.html' : 'today.html'; }, 900);
+    };
+    if (supabaseClient) {
+      supabaseClient.from('app_data').upsert({ id: APP_DATA_ROW_ID, data: parsed, updated_at: new Date().toISOString() })
+        .then(({ error }) => {
+          if (error) {
+            restoreNote.textContent = 'Restored locally, but failed to sync to other devices.';
+            restoreNote.classList.add('error');
+          } else {
+            restoreNote.textContent = 'Restored ✓ Redirecting...';
+            restoreNote.classList.remove('error');
+          }
+          goRedirect();
+        })
+        .catch(() => {
+          restoreNote.textContent = 'Restored locally, but failed to sync to other devices.';
+          restoreNote.classList.add('error');
+          goRedirect();
+        });
+    } else {
+      restoreNote.textContent = 'Restored ✓ Redirecting...';
+      restoreNote.classList.remove('error');
+      goRedirect();
+    }
   });
 </script>
 

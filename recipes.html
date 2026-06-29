@@ -3,22 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Portia — Week</title>
+<title>Portia — Recipes</title>
 <script src="auth.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <style>
-  .wk-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
-  @media (max-width: 720px) { .wk-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
-  .wk-meal .wk-actions { opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
-  .wk-meal:hover .wk-actions { opacity: 1; pointer-events: auto; }
+  .rc-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; }
+  @media (max-width: 1100px) { .rc-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  @media (max-width: 760px) { .rc-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  .rc-card:hover { transform: translateY(-2px); border-color: #3D5166 !important; }
+  .rc-chiprow::-webkit-scrollbar { height: 0; }
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script src="data.js"></script>
-<script src="week.js"></script>
+<script src="recipes.js"></script>
 </body>
 </html>

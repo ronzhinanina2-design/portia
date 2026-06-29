@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="data.js"></script>
+<style>
+  body { margin: 0; background: #141B24; }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  input::placeholder { color: #6B7E91; }
+  @keyframes sheetUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+
+  html, body { font-family: Inter, sans-serif; color: #E8EDF2; }
+
+  #home {
+    position: relative;
+    height: 100dvh;
+    background: #141B24;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 66px 20px 34px;
+  }
+
+  .ring-card {
+    flex: 1;
+    min-height: 0;
+    background: #1C2733;
+    border: 1px solid #2A3A4A;
+    border-radius: 20px;
+    padding: 30px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .ring-label {
+    align-self: flex-start;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8B9BAD;
+    margin-bottom: 18px;
+  }
+  .ring-wrap { position: relative; width: 216px; height: 216px; }
+  .ring-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .ring-consumed { font-size: 58px; font-weight: 600; line-height: 0.95; color: #E8EDF2; letter-spacing: -0.03em; }
+  .ring-goal { font-size: 15px; color: #8B9BAD; margin-top: 6px; }
+  .ring-left { margin-top: 24px; font-size: 15px; color: #8B9BAD; }
+  .ring-left span { color: #E8EDF2; font-weight: 600; }
+  #ring-fill { transition: stroke-dashoffset 1.1s cubic-bezier(0.22, 1, 0.36, 1); }
+
+  .ctas { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+
+  .btn-log {
+    border: none; width: 100%;
+    background: #E8B800; color: #141B24;
+    font-family: Inter, sans-serif; font-size: 16px; font-weight: 600;
+    padding: 16px; border-radius: 13px; cursor: pointer;
+    transition: background 150ms ease, transform 80ms ease;
+  }
+  .btn-log:hover { background: #C9A000; }
+  .btn-log:active { transform: scale(0.985); }
+
+  .btn-add {
+    width: 100%;
+    background: #1C2733; border: 1px solid #2A3A4A; color: #E8EDF2;
+    font-family: Inter, sans-serif; font-size: 16px; font-weight: 600;
+    padding: 16px; border-radius: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: border-color 150ms ease, transform 80ms ease;
+  }
+  .btn-add:hover { border-color: #3D5166; }
+  .btn-add:active { transform: scale(0.985); }
+
+  .sheet {
+    position: absolute; inset: 0; z-index: 60;
+    background: #141B24;
+    display: flex; flex-direction: column;
+    animation: sheetUp 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sheet-inner { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+
+  .sheet-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 62px 20px 14px;
+  }
+  .sheet-header.with-back { gap: 12px; padding: 62px 20px 16px; }
+  .sheet-title { font-size: 21px; font-weight: 600; color: #E8EDF2; }
+  .sheet-title.flex1 { flex: 1; }
+
+  .icon-btn-close {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    color: #8B9BAD; background: #1C2733; border: 1px solid #2A3A4A;
+    transition: color 150ms ease;
+  }
+  .icon-btn-close:active { transform: scale(0.9); }
+  .icon-btn-back {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    color: #8B9BAD; border: 1px solid #34465A;
+  }
+  .icon-btn-back:active { transform: scale(0.9); }
+
+  .slot-pills {
+    display: flex; gap: 4px; margin: 0 20px 16px;
+    background: #1C2733; border: 1px solid #2A3A4A; border-radius: 13px; padding: 5px;
+  }
+  .slot-pill {
+    flex: 1; text-align: center; padding: 9px 0; border-radius: 9px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+    background: transparent; color: #8B9BAD;
+  }
+  .slot-pill.active { background: #2A3A4A; color: #E8EDF2; }
+
+  .search-wrap { position: relative; margin: 0 20px 14px; }
+  .search-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); }
+  .search-input {
+    width: 100%;
+    background: #2A3A4A; border: 1.5px solid #2A3A4A; border-radius: 12px;
+    padding: 13px 16px 13px 44px; font-family: Inter, sans-serif; font-size: 15px;
+    color: #E8EDF2; outline: none; transition: border-color 150ms ease;
+  }
+  .search-input:focus { border-color: #2ABFAD; }
+
+  .chip-row { display: flex; gap: 8px; overflow-x: auto; padding: 0 20px 14px; }
+  .chip {
+    display: inline-flex; align-items: center; padding: 8px 14px; border-radius: 10px;
+    font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+    background: #2A3A4A; border: 1.5px solid #2A3A4A; color: #8B9BAD;
+    transition: border-color 150ms ease, color 150ms ease;
+  }
+  .chip.active { border-color: #2ABFAD; color: #2ABFAD; }
+  .chip.dashed {
+    border: 1.5px dashed #34465A; color: #8B9BAD; background: transparent; gap: 5px;
+  }
+
+  .item-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px; }
+  .section-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #8B9BAD; margin: 4px 0 4px;
+  }
+  .section-label.spaced { margin: 18px 0 4px; }
+
+  .item-row {
+    display: flex; align-items: center; gap: 14px; padding: 12px 0;
+    border-bottom: 1px solid rgba(42,58,74,0.5); cursor: pointer;
+  }
+  .item-row-info { flex: 1; min-width: 0; }
+  .item-row-name { font-size: 15px; font-weight: 500; color: #E8EDF2; }
+  .item-row-tags { font-size: 12px; color: #8B9BAD; margin-top: 2px; }
+  .item-row-stats { text-align: right; flex-shrink: 0; }
+  .item-row-kcal { font-size: 14px; font-weight: 500; color: #E8EDF2; }
+  .item-row-protein { font-size: 12px; color: #8B9BAD; }
+  .counter-badge {
+    width: 32px; height: 32px; border-radius: 9px; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+    background: transparent; border: 1.5px solid #2ABFAD;
+  }
+  .counter-badge.selected { background: #2ABFAD; border: 1px solid #2ABFAD; }
+
+  .no-results { padding: 48px 8px; text-align: center; font-size: 15px; color: #8B9BAD; }
+
+  .sheet-footer {
+    background: #141B24; border-top: 1px solid #2A3A4A; padding: 16px 20px 28px;
+  }
+  .footer-row {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+  }
+  .footer-row.baseline { align-items: baseline; }
+  .footer-count { font-size: 14px; color: #8B9BAD; }
+  .footer-total { font-size: 16px; font-weight: 600; color: #E8EDF2; }
+  .footer-total-big { font-size: 18px; font-weight: 600; color: #E8EDF2; }
+  .footer-total-sub { font-size: 13px; color: #8B9BAD; }
+
+  .cta-btn {
+    width: 100%; border: none; font-family: Inter, sans-serif; font-size: 16px;
+    font-weight: 600; padding: 16px; border-radius: 13px;
+    transition: background 150ms ease, transform 80ms ease;
+  }
+  .cta-btn.on { background: #E8B800; color: #141B24; cursor: pointer; }
+  .cta-btn.on:hover { background: #C9A000; }
+  .cta-btn.on:active { transform: scale(0.985); }
+  .cta-btn.off { background: rgba(232,184,0,0.32); color: rgba(20,27,36,0.4); cursor: not-allowed; }
+
+  .portion-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
+  .portion-card { background: #1C2733; border: 1px solid #2A3A4A; border-radius: 14px; padding: 16px 18px; }
+  .portion-name { font-size: 15px; font-weight: 500; color: #E8EDF2; margin-bottom: 14px; }
+  .portion-btns { display: flex; gap: 8px; }
+  .portion-btn {
+    flex: 1; text-align: center; padding: 10px 0; border-radius: 9px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    border: 1px solid #34465A; color: #8B9BAD; background: transparent;
+  }
+  .portion-btn.on { border-color: #2ABFAD; color: #2ABFAD; background: rgba(42,191,173,0.10); }
+  .portion-custom-row { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+  .portion-custom-input {
+    width: 96px; background: #2A3A4A; border: 1.5px solid #34465A; border-radius: 10px;
+    padding: 10px 12px; font-family: Inter, sans-serif; font-size: 14px; color: #E8EDF2;
+    outline: none; text-align: right;
+  }
+  .portion-custom-input:focus { border-color: #2ABFAD; }
+  .portion-grams-label { font-size: 14px; color: #8B9BAD; }
+
+  .add-content { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 20px 20px; }
+  .photo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .photo-square {
+    width: 64px; height: 64px; border-radius: 14px; background: #1C2733;
+    border: 1.5px dashed #2A3A4A; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: #8B9BAD;
+  }
+  .photo-text { font-size: 13px; color: #8B9BAD; }
+
+  .field-label {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: #8B9BAD; margin-bottom: 8px;
+  }
+  .field-label.spaced { margin-bottom: 10px; }
+
+  .name-input {
+    width: 100%; background: #2A3A4A; border: 1.5px solid #2A3A4A; border-radius: 12px;
+    padding: 14px 16px; font-family: Inter, sans-serif; font-size: 15px; color: #E8EDF2;
+    outline: none; margin-bottom: 24px; transition: border-color 150ms ease;
+  }
+  .name-input:focus { border-color: #2ABFAD; }
+
+  .macro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .macro-cell { background: #1C2733; border: 1px solid #2A3A4A; border-radius: 12px; padding: 12px 14px; }
+  .macro-label { font-size: 12px; color: #8B9BAD; margin-bottom: 6px; }
+  .macro-input {
+    width: 100%; background: transparent; border: none; font-family: Inter, sans-serif;
+    font-size: 20px; font-weight: 600; color: #E8EDF2; outline: none; padding: 0;
+  }
+
+  .tags-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .toast {
+    position: absolute; left: 20px; right: 20px; bottom: 48px; z-index: 80;
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+    background: #1C2733; border: 1px solid #2ABFAD; color: #E8EDF2;
+    border-radius: 12px; padding: 14px 20px; box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+    transition: opacity 280ms ease, transform 280ms ease;
+    opacity: 0; transform: translateY(14px);
+  }
+  .toast.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<div id="home">
+  <div class="ring-card">
+    <div class="ring-label">Calories</div>
+    <div class="ring-wrap">
+      <svg width="216" height="216" viewBox="0 0 160 160" style="transform: rotate(-90deg)">
+        <circle cx="80" cy="80" r="70" fill="none" stroke="#2A3A4A" stroke-width="11"></circle>
+        <circle id="ring-fill" cx="80" cy="80" r="70" fill="none" stroke="#2ABFAD" stroke-width="11" stroke-linecap="round" stroke-dasharray="439.8" stroke-dashoffset="439.8"></circle>
+      </svg>
+      <div class="ring-center">
+        <div class="ring-consumed" id="ring-consumed-text">0</div>
+        <div class="ring-goal" id="ring-goal-text">/ 1,300 kcal</div>
+      </div>
+    </div>
+    <div class="ring-left"><span id="ring-left-text">1,300</span> kcal left today</div>
+  </div>
+
+  <div class="ctas">
+    <button class="btn-log" id="btn-log-meal">Log meal</button>
+    <button class="btn-add" id="btn-add-item">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+      Add item
+    </button>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script>
+(function () {
+  if (localStorage.getItem('portia_auth') !== 'true') {
+    window.location.replace('login.html');
+    return;
+  }
+
+  const SLOTS = [['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['snack', 'Snack'], ['dinner', 'Dinner']];
+  const MACROS = [['kcal', 'Calories'], ['protein', 'Protein'], ['fat', 'Fat'], ['carbs', 'Carbs']];
+
+  let items = Data.getItems();
+  const goals = Data.getGoals();
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  function consumedToday() {
+    return Data.getLogsForDate(todayStr).reduce((sum, log) => sum + log.entries.reduce((s, e) => s + e.kcal, 0), 0);
+  }
+
+  const state = {
+    modal: null, step: 1, activeSlot: 'lunch',
+    search: '', activeTags: [], selected: {}, order: [],
+    itemName: '', itemTags: [], macros: {},
+  };
+
+  const fmt = n => n.toLocaleString('en-US');
+
+  function itemById(id) { return items.find(i => i.id === id); }
+  function allTags() {
+    const t = new Set();
+    items.forEach(i => i.tags.forEach(tg => t.add(tg)));
+    return Array.from(t);
+  }
+
+  function renderRing(animate) {
+    const goal = goals.calorieTarget;
+    const consumed = consumedToday();
+    const circ = 439.8;
+    const off = Math.max(0, circ * (1 - Math.min(1, consumed / goal)));
+    const fillEl = document.getElementById('ring-fill');
+    if (!animate) fillEl.style.transition = 'none';
+    fillEl.setAttribute('stroke-dashoffset', off.toFixed(1));
+    if (!animate) requestAnimationFrame(() => { fillEl.style.transition = ''; });
+    document.getElementById('ring-consumed-text').textContent = fmt(consumed);
+    document.getElementById('ring-goal-text').textContent = `/ ${fmt(goal)} kcal`;
+    document.getElementById('ring-left-text').textContent = fmt(Math.max(0, goal - consumed));
+  }
+
+  function closeIconSvg() {
+    return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>';
+  }
+
+  let mountedModalKey = null;
+
+  function openLogModal() {
+    state.modal = 'log'; state.step = 1; state.activeSlot = 'lunch';
+    state.search = ''; state.activeTags = []; state.selected = {}; state.order = [];
+    renderModal();
+  }
+  function openAddModal() {
+    state.modal = 'add'; state.itemName = ''; state.itemTags = []; state.macros = {};
+    renderModal();
+  }
+  function closeModal() {
+    state.modal = null;
+    mountedModalKey = null;
+    document.getElementById('modal-root').innerHTML = '';
+  }
+
+  function toggleItem(id) {
+    if (state.selected[id]) {
+      delete state.selected[id];
+      state.order = state.order.filter(x => x !== id);
+    } else {
+      state.selected[id] = { portion: 'whole', customG: '' };
+      state.order = [...state.order, id];
+    }
+    renderModal();
+  }
+  function toggleTag(t) {
+    state.activeTags = state.activeTags.includes(t) ? state.activeTags.filter(x => x !== t) : [...state.activeTags, t];
+    renderModal();
+  }
+  function setSlot(s) { state.activeSlot = s; renderModal(); }
+  function setPortion(id, p) { state.selected[id] = { ...state.selected[id], portion: p }; renderModal(); }
+  function setCustomG(id, v) {
+    const clean = String(v).replace(/[^0-9]/g, '');
+    state.selected[id] = { ...state.selected[id], portion: 'custom', customG: clean };
+    renderModal();
+  }
+  function toggleItemTag(t) {
+    state.itemTags = state.itemTags.includes(t) ? state.itemTags.filter(x => x !== t) : [...state.itemTags, t];
+    renderModal();
+  }
+  function setMacro(k, v) {
+    const clean = String(v).replace(/[^0-9]/g, '');
+    state.macros[k] = clean;
+    renderModal();
+  }
+
+  function showToast(msg) {
+    const root = document.getElementById('toast-root');
+    root.innerHTML = `<div class="toast" id="toast-el">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+      <span style="font-size:14px; font-weight:500;">${msg} ✓</span>
+    </div>`;
+    const el = document.getElementById('toast-el');
+    setTimeout(() => el.classList.add('visible'), 20);
+    setTimeout(() => el.classList.remove('visible'), 2000);
+    setTimeout(() => { root.innerHTML = ''; }, 2350);
+  }
+
+  function wholePortionKcal(it) { return Math.round((it.kcal * (it.wholeG || 100)) / 100); }
+  function wholePortionProtein(it) { return Math.round((it.protein * (it.wholeG || 100)) / 100); }
+
+  function calcPortion(it, sel) {
+    const grams = sel.portion === 'whole' ? it.wholeG : sel.portion === 'half' ? it.wholeG * 0.5 : Number(sel.customG);
+    return { kcal: Math.round((it.kcal * grams) / 100), protein: Math.round((it.protein * grams) / 100), grams };
+  }
+
+  function logMeal() {
+    const entries = [];
+    let ok = true;
+    state.order.forEach(id => {
+      const it = itemById(id); const sel = state.selected[id];
+      const valid = sel.portion !== 'custom' || Number(sel.customG) > 0;
+      if (!valid) { ok = false; return; }
+      const c = calcPortion(it, sel);
+      entries.push({ itemId: id, portion: sel.portion, grams: c.grams, kcal: c.kcal, protein: c.protein });
+    });
+    if (!ok || entries.length === 0) return;
+    const existing = Data.getLogForSlot(todayStr, state.activeSlot);
+    const combined = existing ? [...existing.entries, ...entries] : entries;
+    Data.setLogForSlot(todayStr, state.activeSlot, combined);
+    const label = SLOTS.find(([k]) => k === state.activeSlot)[1];
+    closeModal();
+    renderRing(true);
+    showToast(`${label} logged`);
+  }
+
+  function saveItem() {
+    if (!state.itemName.trim()) return;
+    const newItem = Data.addItem({
+      name: state.itemName.trim(),
+      kcal: Number(state.macros.kcal) || 0,
+      protein: Number(state.macros.protein) || 0,
+      fat: Number(state.macros.fat) || 0,
+      carbs: Number(state.macros.carbs) || 0,
+      wholeG: 100,
+      tags: state.itemTags,
+      imageUrl: null,
+    });
+    items = Data.getItems();
+    closeModal();
+    showToast('Item added');
+  }
+
+  function renderModal() {
+    const root = document.getElementById('modal-root');
+    if (!state.modal) {
+      root.innerHTML = '';
+      mountedModalKey = null;
+      return;
+    }
+    const innerHtml = state.modal === 'log' ? (state.step === 1 ? logStep1Html() : logStep2Html()) : addItemHtml();
+    if (mountedModalKey !== state.modal) {
+      root.innerHTML = `<div class="sheet">${innerHtml}</div>`;
+      mountedModalKey = state.modal;
+    } else {
+      root.querySelector('.sheet').innerHTML = innerHtml;
+    }
+    attachModalListeners();
+  }
+
+  function chipHtml(label, active, extraClass) {
+    return `<div class="chip ${active ? 'active' : ''} ${extraClass || ''}" data-chip="${label}">${label}</div>`;
+  }
+
+  function itemRowHtml(it) {
+    const selected = !!state.selected[it.id];
+    return `<div class="item-row" data-toggle="${it.id}">
+      <div class="item-row-info">
+        <div class="item-row-name">${it.name}</div>
+        <div class="item-row-tags">${it.tags.join(' · ')}</div>
+      </div>
+      <div class="item-row-stats">
+        <div class="item-row-kcal">${wholePortionKcal(it)} kcal</div>
+        <div class="item-row-protein">${wholePortionProtein(it)}g protein</div>
+      </div>
+      <div class="counter-badge ${selected ? 'selected' : ''}">
+        ${selected
+          ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>'
+          : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>'}
+      </div>
+    </div>`;
+  }
+
+  function logStep1Html() {
+    const q = state.search.trim().toLowerCase();
+    const matches = it => (!q || it.name.toLowerCase().includes(q)) && (state.activeTags.length === 0 || it.tags.some(tg => state.activeTags.includes(tg)));
+    const showSections = !q && state.activeTags.length === 0;
+    const recentsIds = items.slice(0, 3).map(i => i.id);
+    const favouritesIds = items.slice(3, 6).map(i => i.id);
+    const filtered = items.filter(matches);
+
+    let listHtml = '';
+    if (showSections) {
+      listHtml = `
+        <div class="section-label">Recents</div>
+        ${recentsIds.map(id => itemRowHtml(itemById(id))).join('')}
+        <div class="section-label spaced">Favourites</div>
+        ${favouritesIds.map(id => itemRowHtml(itemById(id))).join('')}
+        <div class="section-label spaced">All items</div>
+        ${items.map(itemRowHtml).join('')}
+      `;
+    } else if (filtered.length > 0) {
+      listHtml = filtered.map(itemRowHtml).join('');
+    } else {
+      listHtml = `<div class="no-results">Nothing found. Try Add item instead.</div>`;
+    }
+
+    const selCount = state.order.length;
+    const runningKcal = state.order.reduce((a, id) => a + wholePortionKcal(itemById(id)), 0);
+    const continueOk = selCount > 0;
+
+    return `<div class="sheet-inner">
+        <div class="sheet-header">
+          <span class="sheet-title">Log meal</span>
+          <div class="icon-btn-close" id="m-close">${closeIconSvg()}</div>
+        </div>
+        <div class="slot-pills">
+          ${SLOTS.map(([k, label]) => `<div class="slot-pill ${state.activeSlot === k ? 'active' : ''}" data-slot="${k}">${label}</div>`).join('')}
+        </div>
+        <div class="search-wrap">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4-4"></path></svg>
+          <input class="search-input" id="m-search" placeholder="Search meals and ingredients..." value="${state.search}" />
+        </div>
+        <div class="chip-row">
+          ${allTags().map(t => chipHtml(t, state.activeTags.includes(t))).join('')}
+        </div>
+        <div class="item-list">${listHtml}</div>
+        <div class="sheet-footer">
+          <div class="footer-row">
+            <span class="footer-count">${selCount} ${selCount === 1 ? 'item' : 'items'}</span>
+            <span class="footer-total">${fmt(runningKcal)} kcal</span>
+          </div>
+          <button class="cta-btn ${continueOk ? 'on' : 'off'}" id="m-continue" ${continueOk ? '' : 'disabled'}>Continue</button>
+        </div>
+      </div>`;
+  }
+
+  function logStep2Html() {
+    let totalK = 0, totalP = 0, allOk = state.order.length > 0;
+    const rows = state.order.map(id => {
+      const it = itemById(id); const sel = state.selected[id];
+      const ok = sel.portion !== 'custom' || Number(sel.customG) > 0;
+      if (ok) { const c = calcPortion(it, sel); totalK += c.kcal; totalP += c.protein; } else allOk = false;
+      return `<div class="portion-card">
+        <div class="portion-name">${it.name}</div>
+        <div class="portion-btns">
+          <div class="portion-btn ${sel.portion === 'whole' ? 'on' : ''}" data-portion="${id}:whole">Whole</div>
+          <div class="portion-btn ${sel.portion === 'half' ? 'on' : ''}" data-portion="${id}:half">Half</div>
+          <div class="portion-btn ${sel.portion === 'custom' ? 'on' : ''}" data-portion="${id}:custom">Custom</div>
+        </div>
+        ${sel.portion === 'custom' ? `<div class="portion-custom-row">
+          <input class="portion-custom-input" data-custom="${id}" placeholder="0" value="${sel.customG}" />
+          <span class="portion-grams-label">grams</span>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+    const logOk = allOk;
+
+    return `<div class="sheet-inner">
+        <div class="sheet-header with-back">
+          <div class="icon-btn-back" id="m-back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></div>
+          <span class="sheet-title flex1">Confirm portions</span>
+          <div class="icon-btn-close" id="m-close">${closeIconSvg()}</div>
+        </div>
+        <div class="portion-list">${rows}</div>
+        <div class="sheet-footer">
+          <div class="footer-row baseline">
+            <span class="footer-count">Total</span>
+            <div style="text-align:right;"><span class="footer-total-big">${fmt(totalK)} kcal</span> <span class="footer-total-sub">· ${totalP}g protein</span></div>
+          </div>
+          <button class="cta-btn ${logOk ? 'on' : 'off'}" id="m-log" ${logOk ? '' : 'disabled'}>Log meal</button>
+        </div>
+      </div>`;
+  }
+
+  function addItemHtml() {
+    const saveOk = state.itemName.trim().length > 0;
+    return `<div class="sheet-inner">
+        <div class="sheet-header">
+          <span class="sheet-title">Add item</span>
+          <div class="icon-btn-close" id="m-close">${closeIconSvg()}</div>
+        </div>
+        <div class="add-content">
+          <div class="photo-row">
+            <div class="photo-square">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="11" r="2"></circle><path d="M21 16l-5-4-9 7"></path></svg>
+            </div>
+            <span class="photo-text">Photo upload coming soon</span>
+          </div>
+          <div class="field-label">Name</div>
+          <input class="name-input" id="m-itemname" placeholder="e.g. Banana" value="${state.itemName}" />
+          <div class="field-label spaced">Macros per 100g</div>
+          <div class="macro-grid">
+            ${MACROS.map(([k, label]) => `<div class="macro-cell">
+              <div class="macro-label">${label}</div>
+              <input class="macro-input" data-macro="${k}" placeholder="0" value="${state.macros[k] || ''}" />
+            </div>`).join('')}
+          </div>
+          <div class="field-label spaced">Tags</div>
+          <div class="tags-wrap">
+            ${allTags().map(t => `<div class="chip ${state.itemTags.includes(t) ? 'active' : ''}" data-itemtag="${t}">${t}</div>`).join('')}
+            <div class="chip dashed">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>New tag
+            </div>
+          </div>
+        </div>
+        <div class="sheet-footer">
+          <button class="cta-btn ${saveOk ? 'on' : 'off'}" id="m-save" ${saveOk ? '' : 'disabled'}>Save item</button>
+        </div>
+      </div>`;
+  }
+
+  function attachModalListeners() {
+    const root = document.getElementById('modal-root');
+    const closeBtn = root.querySelector('#m-close');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
+    if (state.modal === 'log' && state.step === 1) {
+      root.querySelectorAll('[data-slot]').forEach(el => el.addEventListener('click', () => setSlot(el.dataset.slot)));
+      root.querySelectorAll('[data-chip]').forEach(el => el.addEventListener('click', () => toggleTag(el.dataset.chip)));
+      root.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', () => toggleItem(el.dataset.toggle)));
+      const searchInput = root.querySelector('#m-search');
+      searchInput.addEventListener('input', e => { state.search = e.target.value; renderModal(); root.querySelector('#m-search').focus(); });
+      const continueBtn = root.querySelector('#m-continue');
+      if (continueBtn && !continueBtn.disabled) continueBtn.addEventListener('click', () => { state.step = 2; renderModal(); });
+    }
+
+    if (state.modal === 'log' && state.step === 2) {
+      const backBtn = root.querySelector('#m-back');
+      if (backBtn) backBtn.addEventListener('click', () => { state.step = 1; renderModal(); });
+      root.querySelectorAll('[data-portion]').forEach(el => {
+        const [id, p] = el.dataset.portion.split(':');
+        el.addEventListener('click', () => setPortion(id, p));
+      });
+      root.querySelectorAll('[data-custom]').forEach(el => {
+        el.addEventListener('input', e => { setCustomG(el.dataset.custom, e.target.value); root.querySelector(`[data-custom="${el.dataset.custom}"]`).focus(); });
+      });
+      const logBtn = root.querySelector('#m-log');
+      if (logBtn && !logBtn.disabled) logBtn.addEventListener('click', logMeal);
+    }
+
+    if (state.modal === 'add') {
+      const nameInput = root.querySelector('#m-itemname');
+      nameInput.addEventListener('input', e => { state.itemName = e.target.value; renderModal(); root.querySelector('#m-itemname').focus(); });
+      root.querySelectorAll('[data-macro]').forEach(el => {
+        el.addEventListener('input', e => { setMacro(el.dataset.macro, e.target.value); root.querySelector(`[data-macro="${el.dataset.macro}"]`).focus(); });
+      });
+      root.querySelectorAll('[data-itemtag]').forEach(el => el.addEventListener('click', () => toggleItemTag(el.dataset.itemtag)));
+      const saveBtn = root.querySelector('#m-save');
+      if (saveBtn && !saveBtn.disabled) saveBtn.addEventListener('click', saveItem);
+    }
+  }
+
+  document.getElementById('btn-log-meal').addEventListener('click', openLogModal);
+  document.getElementById('btn-add-item').addEventListener('click', openAddModal);
+
+  renderRing(true);
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "portia-static",
+      "runtimeExecutable": "ruby",
+      "runtimeArgs": [
+        "-rwebrick",
+        "-e",
+        "WEBrick::HTTPServer.new(Port: ENV['PORT'].to_i, DocumentRoot: '/Users/ronzinanina/Documents/Projects/portia').start"
+      ],
+      "autoPort": true
+    }
+  ]
+}

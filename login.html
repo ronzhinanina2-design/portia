@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portia — Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .login-box {
+    width: 100%;
+    max-width: 360px;
+    background: #1C2733;
+    border: 1px solid #2A3A4A;
+    border-radius: 20px;
+    padding: 36px 32px;
+    text-align: center;
+  }
+  .login-logo {
+    font-family: 'Instrument Serif', serif;
+    font-size: 34px;
+    line-height: 1;
+    color: #E8EDF2;
+    margin-bottom: 6px;
+  }
+  .login-sub {
+    font-size: 14px;
+    color: #8B9BAD;
+    margin-bottom: 28px;
+  }
+  .login-error {
+    font-size: 13px;
+    color: #E07070;
+    margin-top: 10px;
+    min-height: 16px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="login-box">
+    <div class="login-logo">portia</div>
+    <div class="login-sub">Enter your password to continue</div>
+
+    <form id="login-form">
+      <input id="password-input" class="input" type="password" placeholder="Password" autocomplete="current-password"
+        style="width:100%; margin-bottom:16px; text-align:center;" autofocus />
+      <button type="submit" class="btn-primary">Unlock</button>
+      <div class="login-error" id="login-error"></div>
+    </form>
+  </div>
+
+  <script>
+    const PORTIA_PASSWORD = 'qX7!vL2m@kR9wZpF';
+
+    if (localStorage.getItem('portia_auth') === 'true') {
+      window.location.replace('today.html');
+    }
+
+    const form = document.getElementById('login-form');
+    const input = document.getElementById('password-input');
+    const errorEl = document.getElementById('login-error');
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (input.value === PORTIA_PASSWORD) {
+        localStorage.setItem('portia_auth', 'true');
+        window.location.href = 'today.html';
+      } else {
+        errorEl.textContent = 'Incorrect password.';
+        input.value = '';
+        input.focus();
+      }
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#141B24; }
+  * { box-sizing:border-box; }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb { background:#2A3A4A; border-radius:4px; }
+  input::placeholder { color:#6B7E91; }
+  .small-card .card-pencil { opacity:0; transition:opacity 0.15s ease; }
+  .small-card:hover .card-pencil { opacity:1; }
+  .badge:hover .badge-pencil { opacity:1; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes popIn { 0% { transform:scale(0.6); opacity:0; } 60% { transform:scale(1.08); } 100% { transform:scale(1); opacity:1; } }
+  @keyframes newpulse { 0%,100% { box-shadow:0 0 0 0 rgba(232,184,0,0.0); } 50% { box-shadow:0 0 0 3px rgba(232,184,0,0.18); } }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:#141B24; padding:36px 40px; display:flex; justify-content:center;">
+  <div data-screen-label="Progress (columns)" style="width:100%; max-width:1340px; font-family:Inter,sans-serif; color:#E8EDF2;">
+
+    <!-- global nav -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:30px;">
+      <div style="display:flex; align-items:center; gap:32px;">
+        <div style="font-family:'Instrument Serif',serif; font-size:30px; line-height:1; color:#E8EDF2; padding-right:6px;">portia</div>
+        <div style="display:flex; align-items:center; gap:4px; background:#1C2733; border:1px solid #2A3A4A; border-radius:14px; padding:5px;">
+          <div style="display:flex; align-items:center; gap:9px; padding:9px 16px; border-radius:10px; color:#8B9BAD; font-size:14px; font-weight:500;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"></rect><path d="M3.5 9h17M8 2.5v4M16 2.5v4"></path></svg>
+            Today
+          </div>
+          <div style="display:flex; align-items:center; gap:9px; padding:9px 16px; border-radius:10px; color:#8B9BAD; font-size:14px; font-weight:500;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"></rect></svg>
+            Week
+          </div>
+          <div style="display:flex; align-items:center; gap:9px; padding:9px 16px; border-radius:10px; color:#8B9BAD; font-size:14px; font-weight:500;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17l-6-4-6 4z"></path></svg>
+            Recipes
+          </div>
+          <div style="display:flex; align-items:center; gap:9px; padding:9px 16px; border-radius:10px; background:#2A3A4A; color:#E8EDF2; font-size:14px; font-weight:500;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"></path><path d="M7 15l3.5-4 3 2.5L20 7"></path></svg>
+            Progress
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; background:#1C2733; border:1px solid #2A3A4A; border-radius:12px; padding:8px 14px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8B800" stroke="none"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"></path></svg>
+        <span style="font-size:15px; font-weight:600; color:#E8B800;">7</span>
+        <span style="font-size:13px; color:#8B9BAD;">day streak</span>
+      </div>
+    </div>
+
+    <!-- page header -->
+    <div style="margin-bottom:26px;">
+      <div style="font-size:26px; font-weight:500; color:#E8EDF2; letter-spacing:-0.01em;">Progress</div>
+      <div style="font-size:15px; color:#8B9BAD; margin-top:4px;">Your goals, trends, and the milestones you've earned</div>
+    </div>
+
+    <!-- ===== TWO-COLUMN LAYOUT ===== -->
+    <div style="display:flex; gap:24px; align-items:flex-start;">
+
+    <!-- LEFT COLUMN (2/3) — Goals & metrics -->
+    <div style="flex:2; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- ================= SECTION 1 — GOALS & METRICS ================= -->
+    <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:14px;">
+      <span style="font-size:16px; font-weight:600; color:#E8EDF2;">Goals &amp; metrics</span>
+    </div>
+
+    <!-- WEIGHT large card -->
+    <div style="background:#1C2733; border:1px solid #2A3A4A; border-radius:20px; padding:26px 28px; margin-bottom:18px;">
+
+      <sc-if value="{{ weightFilled }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:18px;">
+            <div>
+              <div style="font-size:12px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase; color:#8B9BAD; margin-bottom:10px;">Weight</div>
+              <div style="display:flex; align-items:baseline; gap:10px;">
+                <span style="font-size:46px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">{{ weightCurrent }}</span>
+                <span style="font-size:20px; font-weight:500; color:#E8EDF2;">kg</span>
+                <span style="font-size:14px; font-weight:500; color:#2ABFAD; background:rgba(42,191,173,0.13); padding:4px 9px; border-radius:7px; margin-left:4px;">{{ weightDelta }}</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="display:flex; align-items:center; gap:3px; background:#141B24; border:1px solid #2A3A4A; border-radius:10px; padding:3px;">
+                <sc-for list="{{ rangePills }}" as="p" hint-placeholder-count="3">
+                  <div onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</div>
+                </sc-for>
+              </div>
+              <div onClick="{{ onEditWeight }}" title="Log weight" style="width:38px; height:38px; border-radius:10px; border:1px solid #2A3A4A; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#8B9BAD; transition:color 150ms ease, border-color 150ms ease, transform 80ms ease;" style-hover="color:#E8EDF2 !important; border-color:#3D5166 !important;" style-active="transform:scale(0.92) !important;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- chart -->
+          <div style="position:relative; width:100%;">
+            <svg viewBox="0 0 1000 240" preserveAspectRatio="none" style="width:100%; height:230px; display:block; overflow:visible;">
+              <defs>
+                <linearGradient id="wfill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#2ABFAD" stop-opacity="0.32"></stop>
+                  <stop offset="100%" stop-color="#2ABFAD" stop-opacity="0"></stop>
+                </linearGradient>
+                <filter id="wglow" x="-20%" y="-40%" width="140%" height="180%">
+                  <feGaussianBlur stdDeviation="6" result="b"></feGaussianBlur>
+                  <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+                </filter>
+              </defs>
+
+              <!-- start reference (faded) -->
+              <line x1="12" y1="{{ startY }}" x2="988" y2="{{ startY }}" stroke="#3D5166" stroke-width="1" stroke-dasharray="2 5"></line>
+              <!-- target reference (teal dashed) -->
+              <line x1="12" y1="{{ targetY }}" x2="988" y2="{{ targetY }}" stroke="#2ABFAD" stroke-width="1.5" stroke-dasharray="6 6" opacity="0.7"></line>
+
+              <sc-if value="{{ showArea }}" hint-placeholder-val="{{ true }}">
+                <path d="{{ areaPath }}" fill="url(#wfill)"></path>
+              </sc-if>
+              <path d="{{ linePath }}" fill="none" stroke="#2ABFAD" style="{{ lineStyle }}"></path>
+
+              <sc-if value="{{ showDots }}" hint-placeholder-val="{{ false }}">
+                <sc-for list="{{ chartDots }}" as="d" hint-placeholder-count="7">
+                  <circle cx="{{ d.cx }}" cy="{{ d.cy }}" r="3.2" fill="#141B24" stroke="#2ABFAD" stroke-width="2"></circle>
+                </sc-for>
+              </sc-if>
+
+              <sc-if value="{{ hoverActive }}" hint-placeholder-val="{{ false }}">
+                <line x1="{{ hoverDot.cx }}" y1="0" x2="{{ hoverDot.cx }}" y2="212" stroke="#3D5166" stroke-width="1"></line>
+                <circle cx="{{ hoverDot.cx }}" cy="{{ hoverDot.cy }}" r="6" fill="#2ABFAD" stroke="#141B24" stroke-width="2.5"></circle>
+              </sc-if>
+            </svg>
+
+            <!-- reference labels -->
+            <div style="position:absolute; right:0; top:0; transform:translateY({{ startLabelTop }}); font-size:11px; color:#6B7E91; background:#1C2733; padding:1px 5px; border-radius:5px;">Start {{ weightStart }}</div>
+            <div style="position:absolute; right:0; top:0; transform:translateY({{ targetLabelTop }}); font-size:11px; color:#2ABFAD; background:#1C2733; padding:1px 5px; border-radius:5px;">Target {{ weightTarget }}</div>
+
+            <!-- hover capture overlay -->
+            <div onMouseMove="{{ onChartMove }}" onMouseLeave="{{ onChartLeave }}" style="position:absolute; inset:0 0 18px 0; cursor:crosshair;"></div>
+
+            <!-- tooltip -->
+            <sc-if value="{{ hoverActive }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; left:{{ tipLeft }}; top:{{ tipTop }}; transform:translate(-50%,-128%); background:#0E141B; border:1px solid #2A3A4A; border-radius:9px; padding:7px 11px; pointer-events:none; box-shadow:0 8px 22px rgba(0,0,0,0.5); white-space:nowrap;">
+                <div style="font-size:15px; font-weight:600; color:#E8EDF2; line-height:1;">{{ tipValue }}</div>
+                <div style="font-size:11px; color:#8B9BAD; margin-top:3px;">{{ tipDate }}</div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- weight empty state -->
+      <sc-if value="{{ weightEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:18px 0 8px;">
+          <div style="font-size:12px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase; color:#8B9BAD; align-self:flex-start; margin-bottom:24px;">Weight</div>
+          <div style="position:relative; width:100%; height:120px; margin-bottom:22px; display:flex; align-items:center; justify-content:center;">
+            <svg viewBox="0 0 1000 120" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%;">
+              <line x1="12" y1="60" x2="988" y2="60" stroke="#2A3A4A" stroke-width="1.5" stroke-dasharray="6 7"></line>
+            </svg>
+            <div style="position:relative; width:54px; height:54px; border-radius:14px; background:#141B24; border:1px solid #2A3A4A; display:flex; align-items:center; justify-content:center;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7l3 3"></path></svg>
+            </div>
+          </div>
+          <div style="font-size:19px; font-weight:600; color:#E8EDF2; margin-bottom:6px;">Track your weight</div>
+          <div style="font-size:14px; color:#8B9BAD; margin-bottom:20px;">Log your current and target weight to see your progress</div>
+          <button onClick="{{ onEditWeight }}" style="display:inline-flex; align-items:center; gap:8px; border:none; background:#E8B800; color:#141B24; font-family:Inter,sans-serif; font-size:15px; font-weight:600; padding:13px 22px; border-radius:12px; cursor:pointer; transition:background 150ms ease, transform 80ms ease;" style-hover="background:#C9A000 !important;" style-active="background:#C9A000 !important; transform:scale(0.97) !important;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+            Set weight goal
+          </button>
+        </div>
+      </sc-if>
+    </div>
+
+    <!-- small metric cards -->
+    <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px;">
+      <sc-for list="{{ smallCards }}" as="card" hint-placeholder-count="4">
+        <div style="perspective:1500px; height:160px;">
+          <div style="{{ card.flipStyle }}">
+
+            <!-- FRONT -->
+            <div class="small-card" style="position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; transform:rotateY(0deg); -webkit-transform:rotateY(0deg); background:#1C2733; border:1px solid #2A3A4A; border-radius:18px; padding:20px 22px; display:flex; flex-direction:column;">
+              <div style="display:flex; align-items:flex-start; justify-content:space-between;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:#8B9BAD;">{{ card.label }}</span>
+                <sc-if value="{{ card.filled }}" hint-placeholder-val="{{ true }}">
+                  <div class="card-pencil" onClick="{{ card.onEdit }}" title="Edit goal" style="width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#8B9BAD; transition:color 150ms ease, transform 80ms ease;" style-hover="color:#E8EDF2 !important;" style-active="transform:scale(0.9) !important;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+                  </div>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ card.filled }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:auto;">
+                  <div style="display:flex; align-items:baseline; gap:7px; margin-bottom:6px;">
+                    <span style="font-size:34px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.025em;">{{ card.bigVal }}</span>
+                    <span style="font-size:16px; font-weight:500; color:#E8EDF2;">{{ card.unit }}</span>
+                    <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">{{ card.subText }}</span>
+                  </div>
+                  <sc-if value="{{ card.showBar }}" hint-placeholder-val="{{ true }}">
+                    <div style="height:6px; background:#2A3A4A; border-radius:4px; overflow:hidden;">
+                      <div style="{{ card.barStyle }}"></div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ card.showGoalLine }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <div style="width:7px; height:7px; border-radius:50%; background:#2ABFAD;"></div>
+                      <span style="font-size:12px; color:#8B9BAD;">{{ card.goalLineText }}</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ card.empty }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:auto;">
+                  <div style="font-size:34px; font-weight:600; line-height:0.9; color:#3D5166; letter-spacing:-0.025em; margin-bottom:10px;">—</div>
+                  <div onClick="{{ card.onEdit }}" style="display:inline-flex; align-items:center; gap:6px; color:#2ABFAD; font-size:13px; font-weight:500; cursor:pointer; transition:color 150ms ease;" style-hover="color:#5BD6C6 !important;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+                    Add goal
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+            <!-- BACK (goal reached) -->
+            <div style="{{ card.backStyle }}">
+              <sc-if value="{{ card.successRibbon }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute; top:0; left:0; right:0; height:6px; background:#E8B800; border-radius:18px 18px 0 0;"></div>
+              </sc-if>
+              <div style="{{ card.successIconStyle }}">
+                <sc-if value="{{ card.successStar }}" hint-placeholder-val="{{ true }}">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="{{ card.successAccent }}" stroke="none"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"></path></svg>
+                </sc-if>
+                <sc-if value="{{ card.successCheck }}" hint-placeholder-val="{{ false }}">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{{ card.successAccent }}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                </sc-if>
+              </div>
+              <div style="font-size:17px; font-weight:600; color:#E8EDF2; margin-top:12px;">Goal reached!</div>
+              <div style="font-size:13px; color:#8B9BAD; margin-top:3px;">{{ card.reachedSub }}</div>
+              <button onClick="{{ card.onNewGoal }}" style="{{ card.newGoalStyle }}">Set new goal</button>
+            </div>
+
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    </div>
+    <!-- end LEFT COLUMN -->
+
+    <!-- RIGHT COLUMN (1/3) — Achievements -->
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column;">
+
+    <!-- ================= SECTION 2 — ACHIEVEMENTS ================= -->
+    <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:14px;">
+      <span style="font-size:16px; font-weight:600; color:#E8EDF2;">Achievements</span>
+    </div>
+
+    <!-- streak summary -->
+    <div style="{{ streakCardStyle }}">
+      <div style="display:flex; align-items:center; gap:18px;">
+        <div style="{{ streakIconStyle }}">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="{{ streakStarFill }}" stroke="{{ streakStarStroke }}" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"></path></svg>
+        </div>
+        <div>
+          <div style="display:flex; align-items:baseline; gap:8px;">
+            <span style="font-size:38px; font-weight:600; line-height:0.9; color:{{ streakNumColor }}; letter-spacing:-0.03em;">{{ streakDays }}</span>
+            <span style="font-size:16px; color:#8B9BAD;">day streak</span>
+          </div>
+          <div style="font-size:13px; color:{{ streakStatusColor }}; margin-top:5px;">{{ streakStatus }}</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:stretch; gap:0; border-top:1px solid #2A3A4A; padding-top:18px;">
+        <div style="flex:1; padding:0 12px; text-align:center; border-right:1px solid #2A3A4A;">
+          <div style="font-size:22px; font-weight:600; color:#E8EDF2; letter-spacing:-0.02em;">23</div>
+          <div style="font-size:11px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-top:4px;">Best streak</div>
+        </div>
+        <div style="flex:1; padding:0 12px; text-align:center;">
+          <div style="font-size:22px; font-weight:600; color:#E8EDF2; letter-spacing:-0.02em;">42</div>
+          <div style="font-size:11px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-top:4px;">Days tracked</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- milestone badges -->
+    <div style="font-size:11px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:#8B9BAD; margin:22px 0 12px;">Milestones</div>
+    <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px;">
+      <sc-for list="{{ badges }}" as="b" hint-placeholder-count="8">
+        <div class="badge" style="{{ b.tileStyle }}">
+          <sc-if value="{{ b.isNew }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute; top:11px; right:11px; font-size:9px; font-weight:600; letter-spacing:0.06em; color:#141B24; background:#E8B800; padding:3px 7px; border-radius:6px;">NEW</div>
+          </sc-if>
+          <div style="{{ b.iconWrap }}">
+            <sc-if value="{{ b.iconStar }}" hint-placeholder-val="{{ true }}">
+              <svg width="{{ b.iconSize }}" height="{{ b.iconSize }}" viewBox="0 0 24 24" fill="{{ b.iconFill }}" stroke="{{ b.iconStroke }}" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"></path></svg>
+            </sc-if>
+            <sc-if value="{{ b.iconTarget }}" hint-placeholder-val="{{ false }}">
+              <svg width="{{ b.iconSize }}" height="{{ b.iconSize }}" viewBox="0 0 24 24" fill="none" stroke="{{ b.iconStroke }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
+            </sc-if>
+            <sc-if value="{{ b.iconZap }}" hint-placeholder-val="{{ false }}">
+              <svg width="{{ b.iconSize }}" height="{{ b.iconSize }}" viewBox="0 0 24 24" fill="none" stroke="{{ b.iconStroke }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4.5 13.5H11l-1 8.5 8.5-11.5H12z"></path></svg>
+            </sc-if>
+            <sc-if value="{{ b.iconCheck }}" hint-placeholder-val="{{ false }}">
+              <svg width="{{ b.iconSize }}" height="{{ b.iconSize }}" viewBox="0 0 24 24" fill="none" stroke="{{ b.iconStroke }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+            </sc-if>
+            <sc-if value="{{ b.iconCal }}" hint-placeholder-val="{{ false }}">
+              <svg width="{{ b.iconSize }}" height="{{ b.iconSize }}" viewBox="0 0 24 24" fill="none" stroke="{{ b.iconStroke }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>
+            </sc-if>
+
+            <sc-if value="{{ b.locked }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; right:-5px; bottom:-5px; width:22px; height:22px; border-radius:50%; background:#141B24; border:1px solid #2A3A4A; display:flex; align-items:center; justify-content:center;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+              </div>
+            </sc-if>
+          </div>
+          <div style="{{ b.labelStyle }}">{{ b.label }}</div>
+          <div style="{{ b.subStyle }}">{{ b.subText }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <!-- end badges -->
+
+    </div>
+    <!-- end RIGHT COLUMN -->
+
+    </div>
+    <!-- end TWO-COLUMN LAYOUT -->
+
+  </div>
+
+  <!-- ===================== LOG / EDIT MEASUREMENT MODAL ===================== -->
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; background:rgba(10,14,20,0.72); display:flex; align-items:center; justify-content:center; padding:40px; z-index:50;">
+      <div style="position:relative; width:100%; max-width:440px; background:#1C2733; border:1px solid #2A3A4A; border-radius:22px; padding:26px 28px 24px; box-shadow:0 30px 80px rgba(0,0,0,0.55); font-family:Inter,sans-serif;">
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
+          <span style="font-size:20px; font-weight:500; color:#E8EDF2;">{{ modalTitle }}</span>
+          <div onClick="{{ onCloseModal }}" style="width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#8B9BAD; transition:color 150ms ease, transform 80ms ease;" style-hover="color:#E8EDF2 !important;" style-active="transform:scale(0.9) !important;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+          </div>
+        </div>
+
+        <!-- current field (measure only) -->
+        <sc-if value="{{ modalHasCurrent }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-bottom:16px;">
+            <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">{{ currentLabel }}</div>
+            <div style="{{ currentWrapStyle }}">
+              <input value="{{ modalCurrent }}" onInput="{{ onCurrentInput }}" placeholder="0" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:18px; font-weight:500; color:#E8EDF2;" />
+              <span style="font-size:14px; color:#8B9BAD;">{{ modalUnit }}</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- target field -->
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">{{ targetLabel }}</div>
+          <div style="{{ targetWrapStyle }}">
+            <input value="{{ modalTarget }}" onInput="{{ onTargetInput }}" placeholder="0" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:18px; font-weight:500; color:#E8EDF2;" />
+            <span style="font-size:14px; color:#8B9BAD;">{{ modalUnit }}</span>
+          </div>
+        </div>
+
+        <!-- date field (measure only) -->
+        <sc-if value="{{ modalHasCurrent }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-bottom:16px;">
+            <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">Date logged</div>
+            <div style="display:flex; align-items:center; gap:10px; background:#2A3A4A; border:1.5px solid #2A3A4A; border-radius:12px; padding:12px 14px;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>
+              <input value="{{ modalDate }}" onInput="{{ onDateInput }}" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:15px; color:#E8EDF2;" />
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- error -->
+        <sc-if value="{{ modalError }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:8px; background:rgba(224,90,90,0.10); border:1px solid rgba(224,90,90,0.35); border-radius:10px; padding:10px 12px; margin-bottom:16px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E0746A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4M12 16h.01"></path></svg>
+            <span style="font-size:13px; color:#E0746A;">{{ modalErrorText }}</span>
+          </div>
+        </sc-if>
+
+        <!-- footer -->
+        <div style="display:flex; gap:10px; margin-top:4px;">
+          <button onClick="{{ onCloseModal }}" style="flex:0 0 auto; padding:14px 22px; border:1px solid #34465A; background:transparent; color:#8B9BAD; font-family:Inter,sans-serif; font-size:15px; font-weight:500; border-radius:13px; cursor:pointer; transition:color 150ms ease, border-color 150ms ease;" style-hover="color:#E8EDF2 !important; border-color:#455A70 !important;">Cancel</button>
+          <button onClick="{{ onSaveModal }}" style="{{ saveBtnStyle }}" style-hover="background:#C9A000 !important;" style-active="background:#C9A000 !important; transform:scale(0.97) !important;">
+            <sc-if value="{{ savePhaseIdle }}" hint-placeholder-val="{{ true }}">Save</sc-if>
+            <sc-if value="{{ savePhaseLoading }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex; align-items:center; gap:9px;">
+                <span style="width:16px; height:16px; border:2px solid rgba(20,27,36,0.35); border-top-color:#141B24; border-radius:50%; display:inline-block; animation:spin 0.7s linear infinite;"></span>
+                Saving…
+              </span>
+            </sc-if>
+            <sc-if value="{{ savePhaseSuccess }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex; align-items:center; gap:8px;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#141B24" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                Saved
+              </span>
+            </sc-if>
+          </button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;chartStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;gradient&quot;,&quot;line&quot;,&quot;glow&quot;],&quot;default&quot;:&quot;glow&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Weight chart&quot;},&quot;weightState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;filled&quot;,&quot;empty&quot;],&quot;default&quot;:&quot;filled&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Weight chart&quot;},&quot;successStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;fill&quot;,&quot;glow&quot;,&quot;ribbon&quot;],&quot;default&quot;:&quot;fill&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Goal reached&quot;},&quot;showGoalReached&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Goal reached&quot;},&quot;badgeStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tile&quot;,&quot;medallion&quot;,&quot;soft&quot;],&quot;default&quot;:&quot;medallion&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Badges&quot;},&quot;streakState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;broken&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Achievements&quot;}}">
+class Component extends DCLogic {
+  state = {
+    metrics: {
+      protein: { label:'Protein goal', kind:'goal', unit:'g', sub:'Daily target', current:null, target:90, start:null },
+      calorie: { label:'Calorie limit', kind:'goal', unit:'kcal', sub:'Daily limit', current:null, target:1300, start:null },
+      waist:   { label:'Waist', kind:'measure', unit:'cm', start:72, current:66, target:65 },
+      hips:    { label:'Hips', kind:'measure', unit:'cm', start:null, current:null, target:null },
+    },
+    weight: { start:76, current:72, target:68, unit:'kg' },
+    range: '3M',
+    hoverIdx: null,
+    modal: null,
+  };
+
+  // ---------- weight series ----------
+  fullSeries(){
+    const ws=[76.0,75.5,75.1,74.6,74.3,73.8,73.4,73.1,72.7,72.4,72.1,72.0];
+    const base=new Date(2026,5,28);
+    return ws.map((w,i)=>{ const d=new Date(base); d.setDate(d.getDate()-(ws.length-1-i)*14); return { w, date:d }; });
+  }
+  visibleSeries(){
+    const all=this.fullSeries(); const r=this.state.range;
+    if(r==='All') return all;
+    if(r==='3M') return all.slice(-7);
+    return all.slice(-3);
+  }
+  fmtDate(d){ return d.toLocaleString('en-US',{month:'short',day:'numeric'}); }
+
+  smooth(pts){
+    if(pts.length<2) return pts.length?`M ${pts[0].x},${pts[0].y}`:'';
+    let d=`M ${pts[0].x},${pts[0].y}`;
+    for(let i=0;i<pts.length-1;i++){
+      const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
+      const c1x=p1.x+(p2.x-p0.x)/6, c1y=p1.y+(p2.y-p0.y)/6;
+      const c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
+      d+=` C ${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
+    return d;
+  }
+
+  onChartMove(e){
+    const r=e.currentTarget.getBoundingClientRect();
+    const frac=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width));
+    const n=this.visibleSeries().length;
+    const idx=Math.round(frac*(n-1));
+    if(idx!==this.state.hoverIdx) this.setState({ hoverIdx:idx });
+  }
+  onChartLeave(){ this.setState({ hoverIdx:null }); }
+  setRange(r){ this.setState({ range:r, hoverIdx:null }); }
+
+  // ---------- modal ----------
+  metricData(key){
+    if(key==='weight'){ const w=this.state.weight; return { label:'Weight', kind:'measure', unit:w.unit, current:w.current, target:w.target }; }
+    return this.state.metrics[key];
+  }
+  openModal(key){
+    const m=this.metricData(key);
+    this.setState({ modal:{ key, kind:m.kind, label:m.label, unit:m.unit,
+      current: m.current!=null?String(m.current):'',
+      target: m.target!=null?String(m.target):'',
+      date:'Jun 28, 2026', error:'', phase:'idle' } });
+  }
+  closeModal(){ this.setState({ modal:null }); }
+  setModal(field,v){ this.setState(s=>({ modal:{ ...s.modal, [field]:v, error:'' } })); }
+  validNum(v){ return v.trim()!=='' && /^[0-9]+(\.[0-9]+)?$/.test(v.trim()) && Number(v)>0; }
+  saveModal(){
+    const md=this.state.modal;
+    if(!md || md.phase!=='idle') return;
+    if(md.kind==='measure' && !this.validNum(md.current)){ this.setState(s=>({ modal:{ ...s.modal, error:'Enter a valid number for the current value.' } })); return; }
+    if(!this.validNum(md.target)){ this.setState(s=>({ modal:{ ...s.modal, error:'Enter a valid target number.' } })); return; }
+    this.setState(s=>({ modal:{ ...s.modal, phase:'loading', error:'' } }));
+    setTimeout(()=>{
+      if(!this.state.modal) return;
+      this.setState(s=>({ modal:{ ...s.modal, phase:'success' } }));
+      setTimeout(()=>this.applyModal(), 820);
+    }, 760);
+  }
+  applyModal(){
+    const md=this.state.modal; if(!md) return;
+    const cur=md.current.trim()===''?null:Number(md.current);
+    const tgt=Number(md.target);
+    if(md.key==='weight'){
+      this.setState(s=>({ weight:{ ...s.weight, current:cur, target:tgt }, modal:null }));
+    } else {
+      this.setState(s=>{
+        const m=s.metrics[md.key];
+        const next={ ...m, target:tgt };
+        if(md.kind==='measure'){ next.current=cur; if(m.start==null && cur!=null) next.start=cur; }
+        return { metrics:{ ...s.metrics, [md.key]:next }, modal:null };
+      });
+    }
+  }
+
+  // ---------- success card styling ----------
+  successStyleFor(){
+    const v=this.props.successStyle || 'fill';
+    const baseBack='position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; transform:rotateY(180deg); border-radius:18px; padding:20px 22px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; overflow:hidden;';
+    const iconBase='width:48px; height:48px; border-radius:14px; display:flex; align-items:center; justify-content:center; position:relative;';
+    const ctaBase='margin-top:16px; border:none; font-family:Inter,sans-serif; font-size:13px; font-weight:600; padding:9px 18px; border-radius:10px; cursor:pointer; transition:background 150ms ease, transform 80ms ease;';
+    if(v==='glow'){
+      return { back: baseBack+' background:#1A2430; border:1px solid #2ABFAD; box-shadow:0 0 28px rgba(42,191,173,0.30), inset 0 0 0 1px rgba(42,191,173,0.15);',
+        icon: iconBase+' background:rgba(42,191,173,0.16);', accent:'#2ABFAD', star:false, check:true, ribbon:false,
+        cta: ctaBase+' background:transparent; border:1px solid #2ABFAD; color:#2ABFAD;', ctaHover:'background:rgba(42,191,173,0.12)' };
+    }
+    if(v==='ribbon'){
+      return { back: baseBack+' background:#1C2733; border:1px solid #34465A;',
+        icon: iconBase+' background:rgba(232,184,0,0.16);', accent:'#E8B800', star:true, check:false, ribbon:true,
+        cta: ctaBase+' background:#E8B800; color:#141B24;', ctaHover:'background:#C9A000' };
+    }
+    return { back: baseBack+' background:rgba(232,184,0,0.13); border:1px solid rgba(232,184,0,0.55);',
+      icon: iconBase+' background:rgba(232,184,0,0.20);', accent:'#E8B800', star:true, check:false, ribbon:false,
+      cta: ctaBase+' background:#E8B800; color:#141B24;', ctaHover:'background:#C9A000' };
+  }
+
+  // ---------- badges ----------
+  badgeData(){
+    return [
+      { id:'s7',  type:'streak',  icon:'star',   label:'7-day streak',  unlocked:true,  date:'Jun 25' },
+      { id:'gc',  type:'streak',  icon:'target', label:'Goal crusher',  unlocked:true,  date:'Jun 25', isNew:true },
+      { id:'s30', type:'streak',  icon:'star',   label:'30-day streak', unlocked:false },
+      { id:'s90', type:'streak',  icon:'star',   label:'90-day streak', unlocked:false },
+      { id:'pp',  type:'streak',  icon:'zap',    label:'Protein pro',   unlocked:false },
+      { id:'fl',  type:'logging', icon:'check',  label:'First log',     unlocked:true,  date:'May 17' },
+      { id:'fw',  type:'logging', icon:'cal',    label:'First week',    unlocked:true,  date:'May 24' },
+      { id:'fm',  type:'logging', icon:'cal',    label:'First month',   unlocked:true,  date:'Jun 16' },
+    ];
+  }
+  buildBadges(){
+    const mode=this.props.badgeStyle || 'tile';
+    const MI={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    const dnum=b=>{ if(!b.date) return -1; const p=b.date.split(' '); return MI[p[0]]*100+parseInt(p[1],10); };
+    const ordered=[...this.badgeData()].sort((a,b)=>{
+      if(a.unlocked!==b.unlocked) return a.unlocked?-1:1;   // unlocked on top, locked greyed at bottom
+      if(!a.unlocked) return 0;                              // keep locked order
+      const da=dnum(a), db=dnum(b);
+      if(db!==da) return db-da;                              // freshest unlocked first
+      return (b.isNew?1:0)-(a.isNew?1:0);
+    });
+    return ordered.map(b=>{
+      const streak=b.type==='streak';
+      const accent = streak ? '#E8B800' : '#2ABFAD';
+      const accentSoft = streak ? 'rgba(232,184,0,0.14)' : 'rgba(42,191,173,0.14)';
+
+      let tileStyle, iconWrap, labelStyle, subStyle, iconSize;
+      if(mode==='medallion'){
+        tileStyle='position:relative; background:#1C2733; border:1px solid #2A3A4A; border-radius:16px; padding:22px 16px 18px; display:flex; flex-direction:column; align-items:center; text-align:center; min-height:150px;';
+        iconWrap='position:relative; width:58px; height:58px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:13px;';
+        iconSize=26; labelStyle='font-size:13.5px; font-weight:600; color:#E8EDF2;'; subStyle='font-size:11.5px; color:#8B9BAD; margin-top:4px;';
+      } else if(mode==='soft'){
+        tileStyle='position:relative; background:#1A2430; border:1px solid transparent; border-radius:14px; padding:16px 16px; display:flex; flex-direction:column; align-items:flex-start; min-height:120px;';
+        iconWrap='position:relative; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; margin-bottom:11px;';
+        iconSize=20; labelStyle='font-size:13.5px; font-weight:600; color:#E8EDF2;'; subStyle='font-size:11.5px; color:#8B9BAD; margin-top:3px;';
+      } else {
+        tileStyle='position:relative; background:#1C2733; border:1px solid #2A3A4A; border-radius:16px; padding:18px 18px; display:flex; flex-direction:column; align-items:flex-start; min-height:138px;';
+        iconWrap='position:relative; width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px;';
+        iconSize=22; labelStyle='font-size:14px; font-weight:600; color:#E8EDF2;'; subStyle='font-size:12px; color:#8B9BAD; margin-top:4px;';
+      }
+
+      let iconFill='none', iconStroke=accent;
+      if(b.unlocked){
+        iconWrap += ` background:${accentSoft};`;
+        if(b.icon==='star'){ iconFill=accent; iconStroke='none'; }
+        if(streak){ tileStyle += ' border-color:rgba(232,184,0,0.35);'; }
+      } else {
+        iconWrap += ' background:#222E3B; opacity:0.55;';
+        iconFill = b.icon==='star' ? '#4A5A6B' : 'none';
+        iconStroke = '#4A5A6B';
+        tileStyle += ' opacity:0.62;';
+        labelStyle = labelStyle.replace('#E8EDF2','#8B9BAD');
+      }
+      if(b.isNew && b.unlocked) tileStyle += ' animation:newpulse 2.4s ease-in-out infinite;';
+
+      const subText = b.unlocked ? `Unlocked ${b.date}` : 'Locked';
+      return {
+        ...b,
+        tileStyle, iconWrap, labelStyle, subStyle, iconSize, iconFill, iconStroke,
+        locked: !b.unlocked,
+        iconStar: b.icon==='star', iconTarget:b.icon==='target', iconZap:b.icon==='zap', iconCheck:b.icon==='check', iconCal:b.icon==='cal',
+        subText,
+      };
+    });
+  }
+
+  renderVals(){
+    const s=this.state;
+    const fmt=n=>n.toLocaleString('en-US');
+
+    // ---------- weight card ----------
+    const w=s.weight;
+    const weightFilled = (this.props.weightState||'filled')!=='empty' && w.current!=null;
+    const weightEmpty = !weightFilled;
+
+    const VBW=1000, VBH=240, padL=12, padR=12, padT=18, padB=28;
+    const wMax=w.start+1, wMin=w.target-1;
+    const yOf=val=> padT + (wMax-val)/(wMax-wMin)*(VBH-padT-padB);
+    const series=this.visibleSeries();
+    const n=series.length;
+    const xOf=i=> padL + (n===1?0:i/(n-1))*(VBW-padL-padR);
+    const pts=series.map((p,i)=>({ x:xOf(i), y:yOf(p.w), w:p.w, date:p.date }));
+    const linePath=this.smooth(pts);
+    const baseY=VBH-padB;
+    const areaPath = pts.length>1 ? `${linePath} L ${pts[pts.length-1].x.toFixed(1)},${baseY} L ${pts[0].x.toFixed(1)},${baseY} Z` : '';
+    const startY=yOf(w.start), targetY=yOf(w.target);
+
+    const cstyle=this.props.chartStyle || 'gradient';
+    const showArea = cstyle==='gradient' || cstyle==='glow';
+    const showDots = cstyle==='line';
+    let lineStyle='stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round;';
+    if(cstyle==='glow') lineStyle+=' filter:url(#wglow);';
+    if(cstyle==='line') lineStyle='stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round;';
+
+    const chartDots = pts.map(p=>({ cx:p.x.toFixed(1), cy:p.y.toFixed(1) }));
+
+    const hoverActive = weightFilled && s.hoverIdx!=null && s.hoverIdx<n;
+    const hp = hoverActive ? pts[s.hoverIdx] : null;
+    const hoverDot = hp ? { cx:hp.x.toFixed(1), cy:hp.y.toFixed(1) } : { cx:0, cy:0 };
+    const tipLeft = hp ? `${(hp.x/VBW*100).toFixed(2)}%` : '0';
+    const tipTop  = hp ? `${(hp.y/VBH*100*0.96).toFixed(2)}%` : '0';
+    const tipValue = hp ? `${hp.w.toFixed(1)} kg` : '';
+    const tipDate = hp ? this.fmtDate(hp.date) : '';
+
+    const startLabelTop=`${(startY/VBH*230 - 9).toFixed(0)}px`;
+    const targetLabelTop=`${(targetY/VBH*230 - 9).toFixed(0)}px`;
+
+    const delta=w.current - w.start;
+    const weightDelta = `${delta>0?'+':'−'}${Math.abs(delta).toFixed(0)} kg`;
+
+    const rangePills=['1M','3M','All'].map(r=>{
+      const on=s.range===r;
+      return { label:r, onClick:()=>this.setRange(r),
+        style:`padding:6px 13px; border-radius:8px; font-size:12.5px; font-weight:500; cursor:pointer; transition:background 150ms ease, color 150ms ease; ${on?'background:#2A3A4A; color:#E8EDF2;':'color:#8B9BAD;'}` };
+    });
+
+    // ---------- small metric cards ----------
+    const succ=this.successStyleFor();
+    const order=['protein','calorie','waist','hips'];
+    const smallCards=order.map(key=>{
+      const m=s.metrics[key];
+      const filled = m.kind==='goal' ? (m.target!=null) : (m.current!=null && m.target!=null);
+      const reached = (m.kind==='measure' && filled && m.current<=m.target) || (key==='waist' && !!this.props.showGoalReached);
+      const flipStyle=`position:relative; width:100%; height:100%; transition:transform 760ms cubic-bezier(0.45,0.05,0.2,1); transform-style:preserve-3d; transform:perspective(1500px) rotateY(${reached?180:0}deg);`;
+
+      let bigVal, subText, showBar=false, barStyle='', showGoalLine=false, goalLineText='';
+      if(m.kind==='goal'){
+        bigVal = fmt(m.target);
+        subText = '';
+        showGoalLine = true;
+        goalLineText = m.sub;
+      } else {
+        bigVal = filled ? String(m.current) : '';
+        subText = filled ? `/ ${m.target} ${m.unit} goal` : '';
+        if(filled && m.start!=null){
+          const pct=Math.min(100,Math.max(6, (m.start-m.current)/(m.start-m.target)*100));
+          showBar=true;
+          barStyle=`height:100%; width:${pct.toFixed(0)}%; background:#2ABFAD; border-radius:4px; transition:width 600ms ease;`;
+        }
+      }
+
+      return {
+        key, label:m.label, unit:m.unit, filled, empty:!filled, reached,
+        flipStyle, bigVal, subText, showBar, barStyle, showGoalLine, goalLineText,
+        onEdit:()=>this.openModal(key),
+        onNewGoal:()=>this.openModal(key),
+        backStyle: succ.back,
+        successIconStyle: succ.icon,
+        successAccent: succ.accent,
+        successStar: succ.star, successCheck: succ.check, successRibbon: succ.ribbon,
+        reachedSub: `${m.label} hit ${m.target!=null?m.target:''} ${m.unit}`,
+        newGoalStyle: succ.cta,
+      };
+    });
+
+    // ---------- streak summary ----------
+    const broken=(this.props.streakState||'active')==='broken';
+    const streakDays = broken ? '0' : '7';
+    const streakNumColor = '#E8B800';
+    const streakStatus = broken ? 'Streak broken — log today to start again' : 'On a roll — keep it going!';
+    const streakStatusColor = broken ? '#E0746A' : '#8B9BAD';
+    const streakCardStyle='background:#1C2733; border:1px solid #2A3A4A; border-radius:18px; padding:24px 24px; display:flex; flex-direction:column; align-items:stretch; gap:20px;';
+    const streakIconStyle = broken
+      ? 'width:58px; height:58px; border-radius:16px; background:#222E3B; display:flex; align-items:center; justify-content:center; flex-shrink:0;'
+      : 'width:58px; height:58px; border-radius:16px; background:rgba(232,184,0,0.14); display:flex; align-items:center; justify-content:center; flex-shrink:0;';
+    const streakStarFill = broken ? 'none' : '#E8B800';
+    const streakStarStroke = broken ? '#5C6B7A' : 'none';
+
+    // ---------- modal ----------
+    const md=s.modal;
+    const modalOpen=!!md;
+    const errBorder='border:1.5px solid rgba(224,116,106,0.7) !important;';
+    const inWrapBase='display:flex; align-items:center; gap:10px; background:#2A3A4A; border:1.5px solid #2A3A4A; border-radius:12px; padding:12px 14px; transition:border-color 150ms ease;';
+    const saveBase='flex:1; display:flex; align-items:center; justify-content:center; border:none; font-family:Inter,sans-serif; font-size:15px; font-weight:600; padding:14px; border-radius:13px; transition:background 150ms ease, transform 80ms ease;';
+
+    let modalVals={};
+    if(md){
+      const phase=md.phase;
+      const busy = phase==='loading' || phase==='success';
+      modalVals={
+        modalTitle: md.label,
+        modalUnit: md.unit,
+        modalHasCurrent: md.kind==='measure',
+        currentLabel: `Current ${md.label.toLowerCase()}`,
+        targetLabel: `Target ${md.label.toLowerCase()}`,
+        modalCurrent: md.current,
+        modalTarget: md.target,
+        modalDate: md.date,
+        modalError: !!md.error,
+        modalErrorText: md.error,
+        currentWrapStyle: inWrapBase + (md.error && md.kind==='measure' && !this.validNum(md.current) ? ' '+errBorder : ''),
+        targetWrapStyle: inWrapBase + (md.error && !this.validNum(md.target) ? ' '+errBorder : ''),
+        onCurrentInput: e=>this.setModal('current', e.target.value),
+        onTargetInput: e=>this.setModal('target', e.target.value),
+        onDateInput: e=>this.setModal('date', e.target.value),
+        onSaveModal: busy ? ()=>{} : ()=>this.saveModal(),
+        onCloseModal: ()=>this.closeModal(),
+        savePhaseIdle: phase==='idle',
+        savePhaseLoading: phase==='loading',
+        savePhaseSuccess: phase==='success',
+        saveBtnStyle: saveBase + (busy ? ' background:#E8B800; color:#141B24; cursor:default;' : ' background:#E8B800; color:#141B24; cursor:pointer;'),
+      };
+    }
+
+    return {
+      // weight
+      weightFilled, weightEmpty,
+      weightCurrent: w.current!=null?String(w.current):'',
+      weightStart: w.start, weightTarget: w.target, weightDelta,
+      onEditWeight: ()=>this.openModal('weight'),
+      rangePills,
+      linePath, areaPath, showArea, showDots, lineStyle, chartDots,
+      startY:startY.toFixed(1), targetY:targetY.toFixed(1),
+      startLabelTop, targetLabelTop,
+      hoverActive, hoverDot, tipLeft, tipTop, tipValue, tipDate,
+      onChartMove: e=>this.onChartMove(e),
+      onChartLeave: ()=>this.onChartLeave(),
+      // small cards
+      smallCards,
+      // streak
+      streakDays, streakNumColor, streakStatus, streakStatusColor,
+      streakCardStyle, streakIconStyle, streakStarFill, streakStarStroke,
+      // badges
+      badges: this.buildBadges(),
+      // modal
+      modalOpen,
+      ...modalVals,
+    };
+  }
+}
+</script>
+</body>
+</html>

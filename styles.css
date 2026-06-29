@@ -1,0 +1,442 @@
+/* ============ Portia — shared global styles ============ */
+
+:root {
+  --deep-ink: #141B24;
+  --slate-well: #1C2733;
+  --dark-panel: #1A242F;
+  --storm: #2A3A4A;
+  --storm-light: #233040;
+  --storm-mid: #34465A;
+  --storm-dark: #3D5166;
+  --turquoise: #2ABFAD;
+  --turquoise-dim: rgba(42,191,173,0.14);
+  --amber: #E8B800;
+  --amber-hover: #C9A000;
+  --amber-disabled: rgba(232,184,0,0.35);
+  --fog: #8B9BAD;
+  --fog-dark: #6B7E91;
+  --cold-white: #E8EDF2;
+  --salmon: #E07070;
+  --salmon-fill: rgba(224,112,112,0.15);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--deep-ink);
+  color: var(--cold-white);
+  font-family: 'Inter', sans-serif;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--storm); border-radius: 4px; }
+
+input::placeholder { color: var(--fog-dark); }
+
+/* ============ Page shell ============ */
+
+.page-shell {
+  min-height: 100vh;
+  background: var(--deep-ink);
+  padding: 36px 40px;
+  display: flex;
+  justify-content: center;
+}
+
+.page-content {
+  width: 100%;
+  max-width: 1340px;
+  font-family: 'Inter', sans-serif;
+  color: var(--cold-white);
+}
+
+/* ============ Nav bar ============ */
+
+.nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.logo {
+  font-family: 'Instrument Serif', serif;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--cold-white);
+  padding-right: 6px;
+}
+
+.nav-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--slate-well);
+  border: 1px solid var(--storm);
+  border-radius: 14px;
+  padding: 5px;
+}
+
+.nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fog);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.nav-tab:hover { background: rgba(42,58,74,0.4); }
+
+.nav-tab.active {
+  background: var(--storm);
+  color: var(--cold-white);
+}
+
+.streak-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--slate-well);
+  border: 1px solid var(--storm);
+  border-radius: 12px;
+  padding: 8px 14px;
+}
+
+.streak-number {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--amber);
+}
+
+.streak-label {
+  font-size: 13px;
+  color: var(--fog);
+}
+
+/* ============ Typography helpers ============ */
+
+.section-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fog);
+}
+
+.page-title {
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--cold-white);
+  letter-spacing: -0.01em;
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--cold-white);
+}
+
+/* ============ Cards ============ */
+
+.card {
+  background: var(--slate-well);
+  border: 1px solid var(--storm);
+}
+
+/* ============ Buttons ============ */
+
+.btn-primary {
+  border: none;
+  background: var(--amber);
+  color: var(--deep-ink);
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 26px;
+  border-radius: 13px;
+  cursor: pointer;
+  width: 100%;
+  transition: background 150ms ease, transform 80ms ease;
+}
+.btn-primary:hover { background: var(--amber-hover); }
+.btn-primary:active { background: var(--amber-hover); transform: scale(0.985); }
+.btn-primary:disabled {
+  background: var(--amber-disabled);
+  color: rgba(20,27,36,0.35);
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--storm-mid);
+  color: var(--cold-white);
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.btn-ghost:hover { border-color: var(--storm-dark); background: rgba(255,255,255,0.04); }
+
+.btn-edit-outline {
+  flex: 1;
+  background: transparent;
+  border: 1.5px solid var(--turquoise);
+  color: var(--cold-white);
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.btn-edit-outline:hover { background: rgba(42,191,173,0.07); }
+
+.btn-delete-ghost {
+  background: transparent;
+  border: none;
+  color: var(--fog);
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.btn-delete-ghost:hover { background: var(--salmon-fill); color: var(--salmon); }
+
+.btn-confirm-delete {
+  background: var(--salmon);
+  color: var(--deep-ink);
+  font-weight: 700;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.btn-confirm-delete:hover { background: #C85A5A; }
+
+.btn-set-goal {
+  background: transparent;
+  border: 1.5px solid var(--amber);
+  color: var(--amber);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.btn-set-goal:hover { background: rgba(232,184,0,0.12); }
+
+/* ============ Inputs ============ */
+
+.input {
+  background: var(--storm);
+  border: 1.5px solid var(--storm);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: 'Inter', sans-serif;
+  color: var(--cold-white);
+  outline: none;
+  transition: border-color 150ms ease;
+}
+.input:hover { border-color: var(--storm-dark); }
+.input:focus { border-color: var(--turquoise); }
+
+.input-card {
+  background: var(--slate-well);
+  border: 1.5px solid var(--storm);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: 'Inter', sans-serif;
+  color: var(--cold-white);
+  outline: none;
+  transition: border-color 150ms ease;
+}
+.input-card:hover { border-color: var(--storm-dark); }
+.input-card:focus { border-color: var(--turquoise); }
+
+.input-unit {
+  color: var(--fog);
+  pointer-events: none;
+}
+
+/* ============ Tag chips ============ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  background: var(--storm);
+  border: 1.5px solid var(--storm);
+  color: var(--fog);
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.chip:hover { background: var(--storm-light); }
+.chip.active { border-color: var(--turquoise); color: var(--turquoise); }
+
+.chip-new {
+  border: 1.5px dashed var(--turquoise);
+  color: var(--turquoise);
+  background: transparent;
+}
+
+.cur-item-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--storm);
+  border: 1.5px solid var(--storm);
+  color: var(--cold-white);
+}
+.cur-item-chip-g { color: var(--fog); font-weight: 500; }
+
+/* ============ Icon buttons ============ */
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--fog);
+  transition: color 150ms ease, transform 80ms ease;
+}
+.icon-btn:hover { color: var(--cold-white); }
+.icon-btn:active { transform: scale(0.9); }
+
+/* ============ Segmented toggle ============ */
+
+.segmented {
+  background: var(--slate-well);
+  border: 1px solid var(--storm);
+  border-radius: 11px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.segmented-pill {
+  color: var(--fog);
+  border-radius: 8px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.segmented-pill.on {
+  background: var(--storm);
+  color: var(--cold-white);
+}
+
+/* ============ Chevron nav ============ */
+
+.chevron-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--cold-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.chevron-btn:hover { background: var(--storm); }
+.chevron-btn.disabled {
+  color: var(--storm-dark);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ============ Meal cards (Today) ============ */
+
+.meal-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.meal-card:hover .meal-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.meal-card:hover .meal-stats {
+  opacity: 0;
+  pointer-events: none;
+}
+.meal-stats {
+  transition: opacity 0.15s ease;
+}
+.meal-icon {
+  cursor: pointer;
+  color: var(--fog);
+  transition: color 0.15s ease, transform 0.08s ease;
+}
+.meal-icon:hover { color: var(--cold-white); }
+.meal-icon:active { color: var(--cold-white); transform: scale(0.9); }
+
+/* ============ Progress tab ============ */
+
+.small-card .card-pencil { opacity: 0; }
+.small-card:hover .card-pencil { opacity: 1; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes popIn {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1);    opacity: 1; }
+}
+@keyframes newpulse {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(232,184,0,0.0);  }
+  50%       { box-shadow: 0 0 0 3px rgba(232,184,0,0.18); }
+}
+
+/* ============ Modal ============ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,14,20,0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  z-index: 50;
+}

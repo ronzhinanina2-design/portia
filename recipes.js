@@ -278,8 +278,8 @@ function renderGridAndEmpty(isItems) {
     const borderStyle = broken ? 'border:1px solid rgba(232,184,0,0.4);' : 'border:1px solid #2A3A4A;';
     const fav = !!x.favourite;
     const favHeartSvg = fav
-      ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="#2ABFAD" stroke="#2ABFAD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.7 2 5 5.6 5c2 0 3.4 1 4.4 2.6C11 5.9 12.4 5 14.4 5 18 5 19.4 8.7 22 11.9 19.5 16.4 12 21 12 21z"></path></svg>`
-      : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8EDF2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.7 2 5 5.6 5c2 0 3.4 1 4.4 2.6C11 5.9 12.4 5 14.4 5 18 5 19.4 8.7 22 11.9 19.5 16.4 12 21 12 21z"></path></svg>`;
+      ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="#2ABFAD" stroke="#2ABFAD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>`
+      : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8EDF2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>`;
 
     return `
       <div class="rc-card" data-action="open-detail" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" style="position:relative; background:#1C2733; ${borderStyle} border-radius:16px; overflow:hidden; cursor:pointer; transition:transform 0.12s ease, border-color 0.15s ease;">

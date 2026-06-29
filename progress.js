@@ -383,7 +383,7 @@ function renderSmallCards() {
         <div style="display:flex; align-items:flex-start; justify-content:space-between;">
           <span class="section-label">${m.label}</span>
           ${filled ? `
-            <div class="card-pencil icon-btn" data-action="open-modal" data-key="${m.key}" title="Edit goal" style="width:28px; height:28px; opacity:0; transition:opacity 0.15s ease, color 150ms ease, transform 80ms ease;">
+            <div class="card-pencil icon-btn" data-action="open-modal" data-key="${m.key}" title="Edit goal" style="width:28px; height:28px; transition:opacity 0.15s ease, color 150ms ease, transform 80ms ease;">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
             </div>
           ` : ''}
@@ -405,7 +405,6 @@ function renderSmallCards() {
           </div>
         ` : `
           <div style="margin-top:auto;">
-            <div style="font-size:34px; font-weight:600; line-height:0.9; color:#3D5166; letter-spacing:-0.025em; margin-bottom:10px;">—</div>
             <div data-action="open-modal" data-key="${m.key}" style="display:inline-flex; align-items:center; gap:6px; color:#2ABFAD; font-size:13px; font-weight:500; cursor:pointer;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
               Add goal

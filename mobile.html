@@ -259,6 +259,7 @@
     opacity: 0; transform: translateY(14px);
   }
   .toast.visible { opacity: 1; transform: translateY(0); }
+  .toast.error { border-color: #E07070; }
 
   .btn-scan {
     position: absolute; top: 20px; right: 20px; z-index: 40;
@@ -496,9 +497,14 @@
           onBarcodeDecoded(result.getText());
         }
       }
-    ).catch(() => {
+    ).catch((err) => {
       closeCamera();
-      showToast('Camera unavailable');
+      const insecure = !window.isSecureContext;
+      let msg = 'Camera unavailable — check site permissions';
+      if (insecure) msg = 'Camera needs a secure connection (https) to work';
+      else if (err && err.name === 'NotAllowedError') msg = 'Camera access denied — allow it in Settings';
+      else if (err && err.name === 'NotFoundError') msg = 'No camera found on this device';
+      showToast(msg, true);
     });
   }
 
@@ -662,16 +668,19 @@
     renderModal();
   }
 
-  function showToast(msg) {
+  function showToast(msg, isError) {
     const root = document.getElementById('toast-root');
-    root.innerHTML = `<div class="toast" id="toast-el">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
-      <span style="font-size:14px; font-weight:500;">${msg} ✓</span>
+    const icon = isError
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E07070" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16h.01"></path></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>';
+    root.innerHTML = `<div class="toast${isError ? ' error' : ''}" id="toast-el">
+      ${icon}
+      <span style="font-size:14px; font-weight:500;">${msg}${isError ? '' : ' ✓'}</span>
     </div>`;
     const el = document.getElementById('toast-el');
     setTimeout(() => el.classList.add('visible'), 20);
-    setTimeout(() => el.classList.remove('visible'), 2000);
-    setTimeout(() => { root.innerHTML = ''; }, 2350);
+    setTimeout(() => el.classList.remove('visible'), isError ? 3200 : 2000);
+    setTimeout(() => { root.innerHTML = ''; }, isError ? 3550 : 2350);
   }
 
   function wholePortionKcal(it) { return Math.round((it.kcal * (it.wholeG || 100)) / 100); }

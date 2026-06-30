@@ -120,13 +120,17 @@
     }
     const ok = window.confirm('This replaces everything currently stored — on this device and, once synced, every device. Continue?');
     if (!ok) return;
+    const restoredAt = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    // Keep this in lockstep with data.js's own write timestamp so a later page load's
+    // remote sync can't mistake an older Supabase row for newer and clobber this restore.
+    localStorage.setItem('portia-data-updated-at', String(restoredAt));
     const goRedirect = () => {
       const isMobileDevice = /iPhone|iPod|Android.*Mobile/i.test(navigator.userAgent) || window.innerWidth <= 480;
       setTimeout(() => { window.location.href = isMobileDevice ? 'mobile.html' : 'today.html'; }, 900);
     };
     if (supabaseClient) {
-      supabaseClient.from('app_data').upsert({ id: APP_DATA_ROW_ID, data: parsed, updated_at: new Date().toISOString() })
+      supabaseClient.from('app_data').upsert({ id: APP_DATA_ROW_ID, data: parsed, updated_at: new Date(restoredAt).toISOString() })
         .then(({ error }) => {
           if (error) {
             restoreNote.textContent = 'Restored locally, but failed to sync to other devices.';

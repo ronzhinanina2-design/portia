@@ -75,11 +75,24 @@ let cache = readLocalOrSeed();
 let resolveReady;
 const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
 
-function pushToRemote(data) {
+// Tracks when THIS device last wrote data, independent of whether the
+// Supabase push actually landed yet. syncFromRemote() uses this to decide
+// whether a pulled row is actually newer than what we already have —
+// without it, a remote pull always wins, which silently destroys any local
+// write whose push hasn't finished landing yet (e.g. user navigates away
+// right after pressing a button, before the fire-and-forget upsert completes).
+const LOCAL_UPDATED_KEY = 'portia-data-updated-at';
+
+function localUpdatedAt() {
+  return Number(localStorage.getItem(LOCAL_UPDATED_KEY) || 0);
+}
+
+function pushToRemote(data, ts) {
   if (!supabaseClient) return Promise.resolve();
+  const updatedAt = new Date(ts || Date.now()).toISOString();
   return supabaseClient
     .from('app_data')
-    .upsert({ id: APP_DATA_ROW_ID, data, updated_at: new Date().toISOString() })
+    .upsert({ id: APP_DATA_ROW_ID, data, updated_at: updatedAt })
     .then(({ error }) => { if (error) console.warn('Supabase push failed', error); })
     .catch((e) => console.warn('Supabase push failed', e));
 }
@@ -89,16 +102,24 @@ async function syncFromRemote() {
   try {
     const { data: row, error } = await supabaseClient
       .from('app_data')
-      .select('data')
+      .select('data, updated_at')
       .eq('id', APP_DATA_ROW_ID)
       .maybeSingle();
     if (error) throw error;
     if (row && row.data) {
-      cache = row.data;
-      if (!cache.dayLocks) cache.dayLocks = {};
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+      const remoteTs = new Date(row.updated_at).getTime();
+      if (remoteTs > localUpdatedAt()) {
+        cache = row.data;
+        if (!cache.dayLocks) cache.dayLocks = {};
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+        localStorage.setItem(LOCAL_UPDATED_KEY, String(remoteTs));
+      } else {
+        // Our local copy is at least as new as remote — make sure remote catches up
+        // instead of letting a stale remote row silently win.
+        await pushToRemote(cache, localUpdatedAt() || Date.now());
+      }
     } else {
-      await pushToRemote(cache);
+      await pushToRemote(cache, localUpdatedAt() || Date.now());
     }
   } catch (e) {
     console.warn('Supabase sync failed, using local cache', e);
@@ -114,8 +135,10 @@ function loadData() {
 
 function saveData(data) {
   cache = data;
+  const now = Date.now();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  pushToRemote(data);
+  localStorage.setItem(LOCAL_UPDATED_KEY, String(now));
+  pushToRemote(data, now);
 }
 
 const Data = {

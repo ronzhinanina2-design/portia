@@ -675,7 +675,7 @@
       : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>';
     root.innerHTML = `<div class="toast${isError ? ' error' : ''}" id="toast-el">
       ${icon}
-      <span style="font-size:14px; font-weight:500;">${msg}${isError ? '' : ' ✓'}</span>
+      <span style="font-size:14px; font-weight:500;">${msg}</span>
     </div>`;
     const el = document.getElementById('toast-el');
     setTimeout(() => el.classList.add('visible'), 20);

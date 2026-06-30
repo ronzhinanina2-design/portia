@@ -21,6 +21,8 @@ function cap(w) {
 
 const state = {
   modalSlot: null,
+  modalLogId: null,
+  isAddFlow: false,
   editMode: false,
   originalIds: [],
   removingIds: [],
@@ -33,6 +35,12 @@ const state = {
   waterRipples: [],
   waterModal: null,
 };
+
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
 
 let undoTimeoutId = null;
 
@@ -108,8 +116,7 @@ function calc(it, sel) {
   return { kcal: Math.round((it.kcal * grams) / 100), protein: Math.round((it.protein * grams) / 100) };
 }
 
-function summarizeSlot(slot) {
-  const log = Data.getLogForSlot(TODAY_DATE, slot);
+function summarizeLog(log) {
   if (!log) return null;
   let kcal = 0, protein = 0;
   const names = [];
@@ -120,7 +127,17 @@ function summarizeSlot(slot) {
     protein += entry.protein;
     names.push(lib.name);
   }
-  return { names, kcal, protein };
+  return { id: log.id, names, kcal, protein };
+}
+
+function dailyTotals() {
+  let kcal = 0, protein = 0;
+  SLOT_META.forEach(([key]) => {
+    Data.getLogsForSlot(TODAY_DATE, key).forEach((log) => {
+      for (const entry of log.entries) { kcal += entry.kcal; protein += entry.protein; }
+    });
+  });
+  return { kcal, protein };
 }
 
 function wholePortionKcal(it) {
@@ -130,8 +147,8 @@ function wholePortionProtein(it) {
   return Math.round((it.protein * (it.wholeG || 100)) / 100);
 }
 
-function openModal(slot) {
-  const log = Data.getLogForSlot(TODAY_DATE, slot);
+function openModal(slot, logId) {
+  const log = logId ? Data.getLogById(logId) : Data.getLogForSlot(TODAY_DATE, slot);
   if (log) {
     const selected = {};
     const order = [];
@@ -142,14 +159,28 @@ function openModal(slot) {
       selected[entry.itemId] = { portion, customG: portion === 'custom' ? String(entry.grams) : '' };
       order.push(entry.itemId);
     }
-    setState({ modalSlot: slot, editMode: true, originalIds: [...order], removingIds: [], step: 1, search: '', activeTags: [], selected, order });
+    setState({ modalSlot: slot, modalLogId: logId || null, isAddFlow: false, editMode: true, originalIds: [...order], removingIds: [], step: 1, search: '', activeTags: [], selected, order });
   } else {
-    setState({ modalSlot: slot, editMode: false, originalIds: [], removingIds: [], step: 1, search: '', activeTags: [], selected: {}, order: [] });
+    setState({ modalSlot: slot, modalLogId: null, isAddFlow: false, editMode: false, originalIds: [], removingIds: [], step: 1, search: '', activeTags: [], selected: {}, order: [] });
   }
 }
 
+function openModalByLogId(logId) {
+  const log = Data.getLogById(logId);
+  if (!log) return;
+  openModal(log.slot, logId);
+}
+
+function openAddMealModal() {
+  setState({ modalSlot: null, modalLogId: null, isAddFlow: true, editMode: false, originalIds: [], removingIds: [], step: 1, search: '', activeTags: [], selected: {}, order: [] });
+}
+
+function chooseAddMealSlot(slot) {
+  setState({ modalSlot: slot });
+}
+
 function closeModal() {
-  setState({ modalSlot: null });
+  setState({ modalSlot: null, modalLogId: null, isAddFlow: false });
 }
 
 function toggleItem(id) {
@@ -210,19 +241,40 @@ function deleteMeal(slot) {
   render();
 }
 
+function deleteLog(logId) {
+  Data.deleteLogById(logId);
+  render();
+}
+
+function buildEntries(s) {
+  return s.order.map((id) => {
+    const lib = libItemById(id);
+    const sel = s.selected[id];
+    const c = calc(lib, sel) || { kcal: wholePortionKcal(lib), protein: wholePortionProtein(lib) };
+    const grams = gramsForSelection(lib, sel);
+    return { itemId: id, portion: sel.portion, grams, kcal: c.kcal, protein: c.protein };
+  });
+}
+
 function saveMeal() {
   const s = state;
+  if (s.isAddFlow) {
+    if (s.modalSlot && s.order.length > 0) {
+      Data.addLogForSlot(TODAY_DATE, s.modalSlot, buildEntries(s));
+    }
+    setState({ modalSlot: null, modalLogId: null, isAddFlow: false });
+    return;
+  }
+  if (s.modalLogId) {
+    if (s.order.length === 0) Data.deleteLogById(s.modalLogId);
+    else Data.updateLogById(s.modalLogId, buildEntries(s));
+    setState({ modalSlot: null, modalLogId: null });
+    return;
+  }
   if (s.order.length === 0) {
     Data.clearLogForSlot(TODAY_DATE, s.modalSlot);
   } else {
-    const entries = s.order.map((id) => {
-      const lib = libItemById(id);
-      const sel = s.selected[id];
-      const c = calc(lib, sel) || { kcal: wholePortionKcal(lib), protein: wholePortionProtein(lib) };
-      const grams = gramsForSelection(lib, sel);
-      return { itemId: id, portion: sel.portion, grams, kcal: c.kcal, protein: c.protein };
-    });
-    Data.setLogForSlot(TODAY_DATE, s.modalSlot, entries);
+    Data.setLogForSlot(TODAY_DATE, s.modalSlot, buildEntries(s));
   }
   setState({ modalSlot: null });
 }
@@ -297,11 +349,7 @@ function yesterdayDateStr() {
 
 function pressDoneForToday(rect) {
   if (isDayLocked()) return;
-  let consumedKcal = 0;
-  SLOT_META.forEach(([key]) => {
-    const sm = summarizeSlot(key);
-    if (sm) consumedKcal += sm.kcal;
-  });
+  const consumedKcal = dailyTotals().kcal;
   const overLimit = consumedKcal > GOAL_KCAL;
   Data.setDayLock(TODAY_DATE, { locked: true, overLimit, lockedAt: Date.now() });
 
@@ -440,11 +488,8 @@ function renderGreeting() {
 }
 
 function renderHero() {
-  let consumedKcal = 0, consumedProtein = 0;
-  SLOT_META.forEach(([key]) => {
-    const sm = summarizeSlot(key);
-    if (sm) { consumedKcal += sm.kcal; consumedProtein += sm.protein; }
-  });
+  const totals = dailyTotals();
+  const consumedKcal = totals.kcal, consumedProtein = totals.protein;
   const leftKcal = Math.max(0, GOAL_KCAL - consumedKcal);
   const circ = 439.8;
   const ringOff = Math.max(0, circ * (1 - Math.min(1, consumedKcal / GOAL_KCAL)));
@@ -571,37 +616,42 @@ function renderMeals() {
   const locked = isDayLocked();
   let loggedCount = 0;
   const slotsHtml = SLOT_META.map(([key, label]) => {
-    const sm = summarizeSlot(key);
-    if (sm) {
-      loggedCount++;
-      const actionsHtml = locked ? '' : `
+    const logs = Data.getLogsForSlot(TODAY_DATE, key);
+    if (logs.length > 0) {
+      loggedCount += logs.length;
+      return logs.map((log, i) => {
+        const sm = summarizeLog(log);
+        const isBase = i === 0;
+        const rowLabel = isBase ? label : `${ordinal(i + 1)} ${label}`;
+        const actionsHtml = locked ? '' : `
               <div class="meal-actions" style="position:absolute; right:0; top:50%; transform:translateY(-50%); display:flex; align-items:center; gap:2px; transition:opacity 0.15s ease;">
-                <div class="meal-icon" data-action="edit-slot" data-slot="${key}" title="Edit meal" style="width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center;">
+                <div class="meal-icon" data-action="${isBase ? 'edit-slot' : 'edit-log'}" data-slot="${key}" data-logid="${log.id || ''}" title="Edit meal" style="width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center;">
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
                 </div>
-                <div class="meal-icon" data-action="delete-slot" data-slot="${key}" title="Remove meal" style="width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center;">
+                <div class="meal-icon" data-action="${isBase ? 'delete-slot' : 'delete-log'}" data-slot="${key}" data-logid="${log.id || ''}" title="Remove meal" style="width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center;">
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
                 </div>
               </div>`;
-      return `
-        <div style="margin-bottom:12px;">
-          <div class="${locked ? '' : 'meal-card'}" style="background:#1C2733; border:1px solid #2A3A4A; border-radius:16px; padding:18px 20px; display:flex; align-items:flex-start; gap:16px; min-height:78px;">
-            <div style="width:36px; height:36px; border-radius:10px; background:rgba(42,191,173,0.14); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
-            </div>
-            <div style="flex:1; min-width:0;">
-              <div class="section-label" style="margin-bottom:3px;">${label}</div>
-              <div style="font-size:16px; font-weight:500; color:#E8EDF2; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden;">${escapeHtml(sm.names.join(', '))}</div>
-            </div>
-            <div style="position:relative; flex-shrink:0; min-width:120px; display:flex; justify-content:flex-end; align-items:center; min-height:42px;">
-              <div class="meal-stats" style="text-align:right; transition:opacity 0.15s ease;">
-                <div style="font-size:22px; font-weight:600; color:#E8EDF2; letter-spacing:-0.02em;">${fmt(sm.kcal)}</div>
-                <div style="font-size:12px; color:#8B9BAD;">kcal · ${sm.protein}g protein</div>
-              </div>${actionsHtml}
+        return `
+          <div style="margin-bottom:12px;">
+            <div class="${locked ? '' : 'meal-card'}" style="background:#1C2733; border:1px solid #2A3A4A; border-radius:16px; padding:18px 20px; display:flex; align-items:flex-start; gap:16px; min-height:78px;">
+              <div style="width:36px; height:36px; border-radius:10px; background:rgba(42,191,173,0.14); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div class="section-label" style="margin-bottom:3px;">${rowLabel}</div>
+                <div style="font-size:16px; font-weight:500; color:#E8EDF2; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden;">${escapeHtml(sm.names.join(', '))}</div>
+              </div>
+              <div style="position:relative; flex-shrink:0; min-width:120px; display:flex; justify-content:flex-end; align-items:center; min-height:42px;">
+                <div class="meal-stats" style="text-align:right; transition:opacity 0.15s ease;">
+                  <div style="font-size:22px; font-weight:600; color:#E8EDF2; letter-spacing:-0.02em;">${fmt(sm.kcal)}</div>
+                  <div style="font-size:12px; color:#8B9BAD;">kcal · ${sm.protein}g protein</div>
+                </div>${actionsHtml}
+              </div>
             </div>
           </div>
-        </div>
-      `;
+        `;
+      }).join('');
     }
     if (locked) {
       return `
@@ -650,10 +700,16 @@ function renderMeals() {
 }
 
 function renderModal() {
-  if (!state.modalSlot) return '';
+  if (!state.modalSlot && !state.isAddFlow) return '';
   const s = state;
   const editMode = s.editMode;
-  const slotTitle = editMode ? `Edit ${cap(s.modalSlot)}` : `Log ${cap(s.modalSlot)}`;
+  const slotChosen = !!s.modalSlot;
+  const slotTitle = s.isAddFlow ? 'Add meal' : (editMode ? `Edit ${cap(s.modalSlot)}` : `Log ${cap(s.modalSlot)}`);
+  const tabsHtml = s.isAddFlow ? `
+    <div class="segmented" style="margin-bottom:18px; align-self:flex-start;">
+      ${SLOT_META.map(([key, label]) => `<div class="segmented-pill${s.modalSlot === key ? ' on' : ''}" data-action="choose-add-slot" data-slot="${key}">${label}</div>`).join('')}
+    </div>
+  ` : '';
   const step1 = s.step === 1;
   const step2 = s.step === 2;
   const library = fullLibrary();
@@ -756,23 +812,31 @@ function renderModal() {
     return `<div class="chip${active ? ' active' : ''}" data-action="toggle-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`;
   }).join('');
 
+  const addFlowNeedsSlot = s.isAddFlow && !slotChosen;
   const step1Html = `
     <div style="display:flex; flex-direction:column; height:100%; min-height:0;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
         <span class="modal-title">${slotTitle}</span>
         <span style="font-size:13px; color:#8B9BAD;">1 / 2</span>
       </div>
-      ${zoneHtml}
-      <div style="position:relative; margin-bottom:16px;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; left:15px; top:50%; transform:translateY(-50%);"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4-4"></path></svg>
-        <input id="search-input" class="input" value="${escapeHtml(s.search)}" placeholder="Search meals and ingredients…" style="width:100%; padding:13px 16px 13px 44px;" />
-      </div>
-      <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; margin-bottom:18px;">
-        ${tagsHtml}
-      </div>
-      <div style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 16px 0 6px;">
-        ${listHtml}
-      </div>
+      ${tabsHtml}
+      ${addFlowNeedsSlot ? `
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; text-align:center;">
+          <span style="font-size:14px; color:#8B9BAD;">Choose a meal type to continue.</span>
+        </div>
+      ` : `
+        ${zoneHtml}
+        <div style="position:relative; margin-bottom:16px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; left:15px; top:50%; transform:translateY(-50%);"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4-4"></path></svg>
+          <input id="search-input" class="input" value="${escapeHtml(s.search)}" placeholder="Search meals and ingredients…" style="width:100%; padding:13px 16px 13px 44px;" />
+        </div>
+        <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; margin-bottom:18px;">
+          ${tagsHtml}
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 16px 0 6px;">
+          ${listHtml}
+        </div>
+      `}
     </div>
   `;
 
@@ -838,7 +902,10 @@ function renderModal() {
 
   let ctaLabel, ctaEnabledFlag;
   if (s.step === 1) {
-    if (editMode && s.order.length === 0) {
+    if (s.isAddFlow) {
+      ctaLabel = 'Continue';
+      ctaEnabledFlag = slotChosen && s.order.length > 0;
+    } else if (editMode && s.order.length === 0) {
       ctaLabel = 'Save changes';
       ctaEnabledFlag = true;
     } else {
@@ -850,7 +917,7 @@ function renderModal() {
     ctaEnabledFlag = allConfirmed;
   }
   const ctaAction = s.step === 1
-    ? (editMode && s.order.length === 0 ? 'save-meal' : 'goto-step2')
+    ? (!s.isAddFlow && editMode && s.order.length === 0 ? 'save-meal' : 'goto-step2')
     : 'save-meal';
 
   return `
@@ -941,6 +1008,7 @@ document.addEventListener('click', (e) => {
   const action = target.dataset.action;
   const slot = target.dataset.slot;
   const id = target.dataset.id;
+  const logId = target.dataset.logid;
 
   switch (action) {
     case 'open-modal':
@@ -951,6 +1019,15 @@ document.addEventListener('click', (e) => {
       break;
     case 'delete-slot':
       if (!isDayLocked()) deleteMeal(slot);
+      break;
+    case 'edit-log':
+      if (!isDayLocked()) openModalByLogId(logId);
+      break;
+    case 'delete-log':
+      if (!isDayLocked()) deleteLog(logId);
+      break;
+    case 'choose-add-slot':
+      chooseAddMealSlot(slot);
       break;
     case 'close-modal':
       closeModal();
@@ -977,7 +1054,7 @@ document.addEventListener('click', (e) => {
       if (!target.disabled) saveMeal();
       break;
     case 'add-meal':
-      if (!isDayLocked()) openModal('snack');
+      if (!isDayLocked()) openAddMealModal();
       break;
     case 'done-today':
       pressDoneForToday(target.getBoundingClientRect());

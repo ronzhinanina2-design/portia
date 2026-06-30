@@ -228,11 +228,20 @@ const Data = {
   },
 
   // ---- logs ----
+  // A slot can hold multiple logs per day (the base entry plus any extras
+  // added via "Add meal"). getLogForSlot/setLogForSlot/clearLogForSlot only
+  // ever touch the first (oldest, i.e. base) log for that date+slot, so
+  // existing call sites (Week tab planning, base slot cards) are unaffected.
+  // Extra entries are addressed individually by id via addLogForSlot/
+  // getLogById/updateLogById/deleteLogById.
   getLogsForDate(date) {
     return loadData().logs.filter((l) => l.date === date);
   },
   getAllLogs() {
     return loadData().logs;
+  },
+  getLogsForSlot(date, slot) {
+    return loadData().logs.filter((l) => l.date === date && l.slot === slot);
   },
   getLogForSlot(date, slot) {
     return loadData().logs.find((l) => l.date === date && l.slot === slot) || null;
@@ -245,7 +254,7 @@ const Data = {
       saveData(data);
       return null;
     }
-    const log = { date, slot, entries };
+    const log = idx === -1 ? { date, slot, entries } : { ...data.logs[idx], entries };
     if (idx === -1) data.logs.push(log);
     else data.logs[idx] = log;
     saveData(data);
@@ -253,6 +262,34 @@ const Data = {
   },
   clearLogForSlot(date, slot) {
     this.setLogForSlot(date, slot, []);
+  },
+  addLogForSlot(date, slot, entries) {
+    const data = loadData();
+    const log = { id: uid('log'), date, slot, entries };
+    data.logs.push(log);
+    saveData(data);
+    return log;
+  },
+  getLogById(id) {
+    return loadData().logs.find((l) => l.id === id) || null;
+  },
+  updateLogById(id, entries) {
+    const data = loadData();
+    const idx = data.logs.findIndex((l) => l.id === id);
+    if (idx === -1) return null;
+    if (!entries || entries.length === 0) {
+      data.logs.splice(idx, 1);
+      saveData(data);
+      return null;
+    }
+    data.logs[idx] = { ...data.logs[idx], entries };
+    saveData(data);
+    return data.logs[idx];
+  },
+  deleteLogById(id) {
+    const data = loadData();
+    data.logs = data.logs.filter((l) => l.id !== id);
+    saveData(data);
   },
 
   // ---- weight ----

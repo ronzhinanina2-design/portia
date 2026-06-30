@@ -72,22 +72,22 @@ function closePanelRc() {
 }
 
 function blankItemDraft() {
-  return { name: '', kcal: '', protein: '', fat: '', carbs: '', tags: [], addingTag: false, newTag: '' };
+  return { name: '', kcal: '', protein: '', fat: '', carbs: '', tags: [], addingTag: false, newTag: '', imageUrl: null };
 }
 function blankRecipeDraft() {
-  return { name: '', ingredients: [], tags: [], ingSearch: '', addingTag: false, newTag: '', replacing: null };
+  return { name: '', ingredients: [], tags: [], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: null };
 }
 function openForm(type, id) {
   let draft;
   if (type === 'item') {
     if (id) {
       const it = itemByIdRc(id);
-      draft = { name: it.name, kcal: String(it.kcal), protein: String(it.protein), fat: String(it.fat), carbs: String(it.carbs), tags: [...it.tags], addingTag: false, newTag: '' };
+      draft = { name: it.name, kcal: String(it.kcal), protein: String(it.protein), fat: String(it.fat), carbs: String(it.carbs), tags: [...it.tags], addingTag: false, newTag: '', imageUrl: it.imageUrl || null };
     } else draft = blankItemDraft();
   } else {
     if (id) {
       const r = recipeByIdRc(id);
-      draft = { name: r.name, ingredients: r.ingredients.map((i) => ({ ...i })), tags: [...r.tags], ingSearch: '', addingTag: false, newTag: '', replacing: null };
+      draft = { name: r.name, ingredients: r.ingredients.map((i) => ({ ...i })), tags: [...r.tags], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: r.imageUrl || null };
     } else draft = blankRecipeDraft();
   }
   setRcState({ panel: { mode: 'form', type, id, draft } });
@@ -150,7 +150,7 @@ function doReplace(idx, newId) {
 function saveItem() {
   const s = rcState;
   const d = s.panel.draft, id = s.panel.id;
-  const rec = { name: d.name.trim() || 'Untitled item', kcal: Number(d.kcal) || 0, protein: Number(d.protein) || 0, fat: Number(d.fat) || 0, carbs: Number(d.carbs) || 0, tags: [...d.tags] };
+  const rec = { name: d.name.trim() || 'Untitled item', kcal: Number(d.kcal) || 0, protein: Number(d.protein) || 0, fat: Number(d.fat) || 0, carbs: Number(d.carbs) || 0, tags: [...d.tags], imageUrl: d.imageUrl || null };
   if (id) Data.updateItem(id, rec);
   else Data.addItem(rec);
   setRcState({ panel: null });
@@ -159,10 +159,89 @@ function saveRecipe() {
   const s = rcState;
   const d = s.panel.draft, id = s.panel.id;
   const ingredients = d.ingredients.map((ing) => ({ itemId: ing.itemId, grams: Number(ing.grams) || 0 }));
-  const rec = { name: d.name.trim() || 'Untitled recipe', ingredients, tags: [...d.tags] };
+  const rec = { name: d.name.trim() || 'Untitled recipe', ingredients, tags: [...d.tags], imageUrl: d.imageUrl || null };
   if (id) Data.updateRecipe(id, rec);
   else Data.addRecipe(rec);
   setRcState({ panel: null });
+}
+
+/* ============ Photo upload ============ */
+
+let pendingPhotoTarget = null;
+
+function triggerPhotoUpload(target) {
+  pendingPhotoTarget = target;
+  const input = document.getElementById('rc-photo-input');
+  if (input) { input.value = ''; input.click(); }
+}
+
+const PHOTO_MAX_DIMENSION = 800;
+const PHOTO_JPEG_QUALITY = 0.82;
+const PHOTO_MAX_SOURCE_BYTES = 20 * 1024 * 1024;
+
+// Downscales to PHOTO_MAX_DIMENSION on the longest edge and re-encodes as
+// JPEG so a multi-MB phone photo doesn't bloat the single JSON blob that
+// holds all of Portia's data (localStorage + the Supabase row both round-trip
+// the whole blob on every save, not just the photo).
+function compressImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read-failed'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('decode-failed'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > PHOTO_MAX_DIMENSION || height > PHOTO_MAX_DIMENSION) {
+          if (width >= height) {
+            height = Math.round((height / width) * PHOTO_MAX_DIMENSION);
+            width = PHOTO_MAX_DIMENSION;
+          } else {
+            width = Math.round((width / height) * PHOTO_MAX_DIMENSION);
+            height = PHOTO_MAX_DIMENSION;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function applyPhotoFile(file) {
+  const target = pendingPhotoTarget;
+  pendingPhotoTarget = null;
+  if (!file || !target) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Please choose an image file (JPEG, PNG, HEIC, etc).');
+    return;
+  }
+  if (file.size > PHOTO_MAX_SOURCE_BYTES) {
+    alert('That photo is too large. Please choose a file under 20MB.');
+    return;
+  }
+  compressImageFile(file).then((dataUrl) => {
+    if (target.kind === 'form') {
+      patchDraft({ imageUrl: dataUrl });
+    } else {
+      if (target.type === 'item') Data.updateItem(target.id, { imageUrl: dataUrl });
+      else Data.updateRecipe(target.id, { imageUrl: dataUrl });
+      renderRecipes();
+    }
+  }).catch(() => {
+    alert('Could not process that photo. Please try a different file.');
+  });
+}
+
+function removeCardPhoto(type, id) {
+  if (type === 'item') Data.updateItem(id, { imageUrl: null });
+  else Data.updateRecipe(id, { imageUrl: null });
+  renderRecipes();
 }
 
 function askDelete(type, id, name) {
@@ -286,9 +365,12 @@ function renderGridAndEmpty(isItems) {
       ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="#2ABFAD" stroke="#2ABFAD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>`
       : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8EDF2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>`;
 
+    const photoTopOffset = broken ? '42px' : '10px';
     return `
       <div class="rc-card" data-action="open-detail" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" style="position:relative; background:#1C2733; ${borderStyle} border-radius:16px; overflow:hidden; cursor:pointer; transition:transform 0.12s ease, border-color 0.15s ease;">
-        <div style="position:relative; width:100%; aspect-ratio:16/9; background:#2A3A4A; display:flex; align-items:center; justify-content:center;">
+        <div data-action="upload-photo" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="${x.imageUrl ? 'Tap to replace photo' : 'Tap to add a photo'}" style="position:relative; width:100%; aspect-ratio:16/9; background:#2A3A4A; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+          ${x.imageUrl ? `<img src="${x.imageUrl}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" alt="">` : ''}
+          ${x.imageUrl ? `<div class="rc-photo-scrim" style="position:absolute; inset:0; background:rgba(10,14,20,0.45);"></div>` : ''}
           ${broken ? `
             <div style="position:absolute; top:10px; left:10px; display:flex; align-items:center; gap:5px; background:rgba(232,184,0,0.16); border:1px solid rgba(232,184,0,0.4); color:#E8B800; font-size:11px; font-weight:600; padding:4px 9px; border-radius:7px;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
@@ -301,10 +383,21 @@ function renderGridAndEmpty(isItems) {
               Recipe
             </div>
           ` : ''}
+          ${x.imageUrl ? `
+            <div class="rc-photo-actions" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+              <div style="display:flex; align-items:center; gap:6px; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); color:#E8EDF2; font-size:12px; font-weight:600; padding:7px 13px; border-radius:9px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+                Replace
+              </div>
+            </div>
+            <div class="rc-photo-actions" data-action="remove-photo" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="Remove photo" style="position:absolute; top:${photoTopOffset}; left:10px; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); cursor:pointer; color:#E8EDF2; transition:border-color 150ms ease, transform 80ms ease;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+            </div>
+          ` : ''}
           <div class="rc-fav-btn" data-action="toggle-fav" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" style="position:absolute; bottom:10px; right:10px; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.55); border:1px solid rgba(255,255,255,0.1); cursor:pointer; transition:border-color 150ms ease, transform 80ms ease;">
             ${favHeartSvg}
           </div>
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+          ${!x.imageUrl ? `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>` : ''}
         </div>
         <div style="padding:13px 14px 15px;">
           <div style="font-size:15px; font-weight:600; color:#E8EDF2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtmlRc(x.name)}</div>
@@ -378,8 +471,8 @@ function renderDetailPanel(panel) {
           </div>
         </div>
         <div style="flex:1; min-height:0; overflow-y:auto; padding:6px 34px 30px;">
-          <div style="width:100%; aspect-ratio:16/9; background:#2A3A4A; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:24px;">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+          <div style="position:relative; width:100%; aspect-ratio:16/9; background:#2A3A4A; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:24px; overflow:hidden;">
+            ${it.imageUrl ? `<img src="${it.imageUrl}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" alt="">` : `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>`}
           </div>
           <div style="font-size:22px; font-weight:500; color:#E8EDF2; margin-bottom:14px;">${escapeHtmlRc(it.name)}</div>
           <div style="display:flex; flex-wrap:wrap; gap:7px; margin-bottom:26px;">${tagsHtml}</div>
@@ -442,8 +535,8 @@ function renderDetailPanel(panel) {
         </div>
       </div>
       <div style="flex:1; min-height:0; overflow-y:auto; padding:6px 34px 30px;">
-        <div style="width:100%; aspect-ratio:16/9; background:#2A3A4A; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:24px;">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+        <div style="position:relative; width:100%; aspect-ratio:16/9; background:#2A3A4A; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:24px; overflow:hidden;">
+          ${r.imageUrl ? `<img src="${r.imageUrl}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" alt="">` : `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>`}
         </div>
         <div style="font-size:22px; font-weight:500; color:#E8EDF2; margin-bottom:14px;">${escapeHtmlRc(r.name)}</div>
         ${m.broken ? `
@@ -514,10 +607,15 @@ function renderFormPanel(panel) {
 
   const photoHtml = `
     <div style="display:flex; align-items:center; gap:14px; margin-bottom:24px;">
-      <div style="width:88px; height:88px; flex-shrink:0; background:#2A3A4A; border-radius:12px; display:flex; align-items:center; justify-content:center;">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+      <div data-action="upload-photo" data-target="form" title="${d.imageUrl ? 'Tap to replace photo' : 'Tap to add a photo'}" style="position:relative; width:88px; height:88px; flex-shrink:0; background:#2A3A4A; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden;">
+        ${d.imageUrl ? `
+          <img src="${d.imageUrl}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" alt="">
+          <div data-action="remove-form-photo" title="Remove photo" style="position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:6px; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; color:#E8EDF2;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+          </div>
+        ` : `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>`}
       </div>
-      <div style="font-size:12px; color:#5C6B7A; line-height:1.5;">Photo upload<br>coming soon</div>
+      <div style="font-size:12px; color:#5C6B7A; line-height:1.5;">${d.imageUrl ? 'Tap photo to replace,<br>or use the × to remove it' : 'Tap to add a photo'}</div>
     </div>
   `;
 
@@ -701,6 +799,7 @@ function renderRecipes() {
       </div>
       ${renderPanelOverlay()}
       ${renderConfirmDelete()}
+      <input type="file" id="rc-photo-input" accept="image/*" style="display:none;" />
     </div>
   `;
 
@@ -762,6 +861,11 @@ document.addEventListener('click', (e) => {
     case 'remove-ingredient': removeIngredient(Number(target.dataset.idx)); break;
     case 'save-item': if (!target.disabled) saveItem(); break;
     case 'save-recipe': if (!target.disabled) saveRecipe(); break;
+    case 'upload-photo':
+      triggerPhotoUpload(target.dataset.target === 'form' ? { kind: 'form' } : { kind: 'card', type, id });
+      break;
+    case 'remove-photo': removeCardPhoto(type, id); break;
+    case 'remove-form-photo': patchDraft({ imageUrl: null }); break;
   }
 });
 
@@ -782,6 +886,8 @@ document.addEventListener('change', (e) => {
   if (e.target.id === 'rc-sort') {
     rcState.sort = e.target.value;
     renderRecipes();
+  } else if (e.target.id === 'rc-photo-input') {
+    applyPhotoFile(e.target.files && e.target.files[0]);
   }
 });
 

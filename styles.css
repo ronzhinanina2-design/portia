@@ -407,6 +407,26 @@ input::placeholder { color: var(--fog-dark); }
 .meal-stats {
   transition: opacity 0.15s ease;
 }
+
+/* ============ Item/Recipe card photos ============ */
+
+.rc-photo-scrim {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.rc-card:hover .rc-photo-scrim {
+  opacity: 1;
+}
+.rc-photo-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.rc-card:hover .rc-photo-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
 .meal-icon {
   cursor: pointer;
   color: var(--fog);

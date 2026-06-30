@@ -28,6 +28,7 @@ function seedData() {
     hipsCurrent: null,
     hipsStart: null,
     hipsTarget: null,
+    waterTarget: 2000,
   };
 
   const streak = {
@@ -37,7 +38,13 @@ function seedData() {
     totalDaysTracked: 0,
   };
 
-  return { items, recipes, logs, weight, goals, streak, dayLocks: {} };
+  const waterStreak = {
+    currentStreak: 0,
+    bestStreak: 0,
+    lastMetDate: null,
+  };
+
+  return { items, recipes, logs, weight, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak };
 }
 
 /* ============ Supabase sync ============ */
@@ -60,6 +67,9 @@ function readLocalOrSeed() {
     try {
       const parsed = JSON.parse(raw);
       if (!parsed.dayLocks) parsed.dayLocks = {};
+      if (!parsed.waterLogs) parsed.waterLogs = {};
+      if (!parsed.waterStreak) parsed.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
+      if (parsed.goals && parsed.goals.waterTarget == null) parsed.goals.waterTarget = 2000;
       return parsed;
     } catch (e) {
       // fall through to reseed
@@ -111,6 +121,9 @@ async function syncFromRemote() {
       if (remoteTs > localUpdatedAt()) {
         cache = row.data;
         if (!cache.dayLocks) cache.dayLocks = {};
+        if (!cache.waterLogs) cache.waterLogs = {};
+        if (!cache.waterStreak) cache.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
+        if (cache.goals && cache.goals.waterTarget == null) cache.goals.waterTarget = 2000;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
         localStorage.setItem(LOCAL_UPDATED_KEY, String(remoteTs));
       } else {
@@ -272,6 +285,47 @@ const Data = {
     data.streak = { ...data.streak, ...patch };
     saveData(data);
     return data.streak;
+  },
+
+  // ---- water ----
+  getWaterForDate(date) {
+    return loadData().waterLogs[date] || 0;
+  },
+  addWater(date, amountMl) {
+    const data = loadData();
+    const prevMl = data.waterLogs[date] || 0;
+    const nextMl = prevMl + amountMl;
+    data.waterLogs[date] = nextMl;
+
+    const goal = data.goals.waterTarget;
+    if (goal && prevMl < goal && nextMl >= goal) {
+      const y = new Date(date + 'T00:00:00');
+      y.setDate(y.getDate() - 1);
+      const yesterday = y.toISOString().slice(0, 10);
+      const ws = data.waterStreak;
+      if (ws.lastMetDate !== date) {
+        const nextStreak = ws.lastMetDate === yesterday ? ws.currentStreak + 1 : 1;
+        data.waterStreak = {
+          currentStreak: nextStreak,
+          bestStreak: Math.max(ws.bestStreak, nextStreak),
+          lastMetDate: date,
+        };
+      }
+    }
+    saveData(data);
+    return nextMl;
+  },
+  getWaterGoal() {
+    return loadData().goals.waterTarget;
+  },
+  setWaterGoal(ml) {
+    const data = loadData();
+    data.goals = { ...data.goals, waterTarget: ml };
+    saveData(data);
+    return data.goals;
+  },
+  getWaterStreak() {
+    return loadData().waterStreak;
   },
 
   // ---- day lock ("Done for today") ----

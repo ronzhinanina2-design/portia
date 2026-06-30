@@ -25,6 +25,8 @@
   input::placeholder { color:#6B7E91; }
   .logged-row .row-x { opacity:0; transition:opacity 0.15s ease; }
   .logged-row:hover .row-x { opacity:1; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes waterRipple { from { transform:scale(0.65); opacity:0.65; } to { transform:scale(2.2); opacity:0; } }
 </style>
 </helmet>
 
@@ -90,19 +92,48 @@
           <div style="margin-top:22px; font-size:15px; color:#8B9BAD;"><span style="color:#E8EDF2; font-weight:500;">{{ leftKcalText }}</span> left today</div>
         </div>
 
-        <div style="background:#1C2733; border:1px solid #2A3A4A; border-radius:20px; padding:26px 28px;">
-          <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:18px;">
-            <span style="font-size:12px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase; color:#8B9BAD;">Protein</span>
-            <span style="font-size:14px; color:#8B9BAD;">{{ proteinPctText }}</span>
+        <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px;">
+
+          <!-- Protein (half width) -->
+          <div style="background:#1C2733; border:1px solid #2A3A4A; border-radius:20px; padding:22px 22px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; min-height:36px; margin-bottom:16px;">
+              <span style="font-size:12px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase; color:#8B9BAD;">Protein</span>
+              <span style="font-size:13px; color:#8B9BAD;">{{ proteinPctText }}</span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:5px; margin-bottom:14px;">
+              <span style="font-size:38px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">{{ proteinG }}</span>
+              <span style="font-size:18px; font-weight:500; color:#E8EDF2;">g</span>
+              <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">/ 90g</span>
+            </div>
+            <div style="height:8px; background:#2A3A4A; border-radius:5px; overflow:hidden;">
+              <div style="{{ proteinBarStyle }}"></div>
+            </div>
           </div>
-          <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:16px;">
-            <span style="font-size:48px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">{{ proteinG }}</span>
-            <span style="font-size:22px; font-weight:500; color:#E8EDF2;">g</span>
-            <span style="font-size:16px; color:#8B9BAD; margin-left:4px;">/ 90g</span>
+
+          <!-- Water (half width) -->
+          <div onClick="{{ onEditWaterGoal }}" title="Edit water goal" style="position:relative; background:#1C2733; border:1px solid #2A3A4A; border-radius:20px; padding:22px 22px; cursor:pointer; transition:border-color 150ms ease;" style-hover="border-color:#3D5166 !important;">
+            <div style="position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; min-height:36px; margin-bottom:16px;">
+              <span style="font-size:12px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase; color:#8B9BAD;">Water</span>
+              <button onClick="{{ onAddWater }}" title="Add 250ml" style="position:relative; width:36px; height:36px; border:none; border-radius:11px; background:rgba(42,191,173,0.14); color:#2ABFAD; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:background 150ms ease, transform 80ms ease;" style-hover="background:rgba(42,191,173,0.24) !important;" style-active="transform:scale(0.88) !important;">
+                <sc-for list="{{ ripples }}" as="r" hint-placeholder-count="0">
+                  <span style="position:absolute; inset:0; border-radius:11px; border:2px solid #2ABFAD; pointer-events:none; animation:waterRipple 0.65s ease-out forwards;"></span>
+                </sc-for>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.116 4.104A1 1 0 0 1 6.11 3h11.78a1 1 0 0 1 .994 1.104l-1.626 16.256a1 1 0 0 1-.995.901H7.737a1 1 0 0 1-.995-.901z"></path><path d="M6 12a5 5 0 0 1 6 0 5 5 0 0 0 6 0"></path></svg>
+              </button>
+            </div>
+            <div style="position:relative; z-index:1; display:flex; align-items:baseline; gap:5px; margin-bottom:14px;">
+              <span style="font-size:38px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">{{ waterMl }}</span>
+              <span style="font-size:18px; font-weight:500; color:#E8EDF2;">ml</span>
+              <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">{{ waterGoalText }}</span>
+            </div>
+            <div style="position:relative; z-index:1; height:8px; background:#2A3A4A; border-radius:5px; overflow:hidden;">
+              <div style="{{ waterBarStyle }}"></div>
+            </div>
+            <sc-if value="{{ waterReached }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute; inset:0; border-radius:20px; border:1px solid rgba(232,184,0,0.55); background:rgba(232,184,0,0.10); pointer-events:none;"></div>
+            </sc-if>
           </div>
-          <div style="height:8px; background:#2A3A4A; border-radius:5px; overflow:hidden;">
-            <div style="{{ proteinBarStyle }}"></div>
-          </div>
+
         </div>
       </div>
 
@@ -397,6 +428,55 @@
     </div>
   </sc-if>
 
+  <!-- ===================== WATER GOAL MODAL ===================== -->
+  <sc-if value="{{ waterModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; background:rgba(10,14,20,0.72); display:flex; align-items:center; justify-content:center; padding:40px; z-index:60;">
+      <div style="position:relative; width:100%; max-width:440px; background:#1C2733; border:1px solid #2A3A4A; border-radius:22px; padding:26px 28px 24px; box-shadow:0 30px 80px rgba(0,0,0,0.55); font-family:Inter,sans-serif;">
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
+          <span style="font-size:20px; font-weight:500; color:#E8EDF2;">Water goal</span>
+          <div onClick="{{ onCloseWaterModal }}" style="width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#8B9BAD; transition:color 150ms ease, transform 80ms ease;" style-hover="color:#E8EDF2 !important;" style-active="transform:scale(0.9) !important;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">Daily goal</div>
+          <div style="{{ waterTargetWrapStyle }}">
+            <input value="{{ waterModalTarget }}" onInput="{{ onWaterTargetInput }}" placeholder="0" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:18px; font-weight:500; color:#E8EDF2;" />
+            <span style="font-size:14px; color:#8B9BAD;">ml</span>
+          </div>
+        </div>
+
+        <sc-if value="{{ waterModalError }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:8px; background:rgba(224,90,90,0.10); border:1px solid rgba(224,90,90,0.35); border-radius:10px; padding:10px 12px; margin-bottom:16px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E0746A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4M12 16h.01"></path></svg>
+            <span style="font-size:13px; color:#E0746A;">{{ waterModalErrorText }}</span>
+          </div>
+        </sc-if>
+
+        <div style="display:flex; gap:10px; margin-top:4px;">
+          <button onClick="{{ onCloseWaterModal }}" style="flex:0 0 auto; padding:14px 22px; border:1px solid #34465A; background:transparent; color:#8B9BAD; font-family:Inter,sans-serif; font-size:15px; font-weight:500; border-radius:13px; cursor:pointer; transition:color 150ms ease, border-color 150ms ease;" style-hover="color:#E8EDF2 !important; border-color:#455A70 !important;">Cancel</button>
+          <button onClick="{{ onSaveWaterModal }}" style="{{ waterSaveBtnStyle }}" style-hover="background:#C9A000 !important;" style-active="background:#C9A000 !important; transform:scale(0.97) !important;">
+            <sc-if value="{{ waterSaveIdle }}" hint-placeholder-val="{{ true }}">Save</sc-if>
+            <sc-if value="{{ waterSaveLoading }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex; align-items:center; gap:9px;">
+                <span style="width:16px; height:16px; border:2px solid rgba(20,27,36,0.35); border-top-color:#141B24; border-radius:50%; display:inline-block; animation:spin 0.7s linear infinite;"></span>
+                Saving…
+              </span>
+            </sc-if>
+            <sc-if value="{{ waterSaveSuccess }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex; align-items:center; gap:8px;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#141B24" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                Saved
+              </span>
+            </sc-if>
+          </button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;editZone&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;table&quot;,&quot;chips&quot;,&quot;inline&quot;],&quot;default&quot;:&quot;chips&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Edit meal&quot;,&quot;unit&quot;:&quot;&quot;}}">
@@ -420,6 +500,7 @@ class Component extends DCLogic {
   FAVOURITES = ['salmon','avocado','eggs'];
   goalKcal = 1300;
   goalProtein = 90;
+  _rid = 0;
 
   state = {
     loggedMeals: {
@@ -437,6 +518,10 @@ class Component extends DCLogic {
     activeTags: [],
     selected: {},
     order: [],
+    water: 0,
+    waterGoal: 2000,
+    ripples: [],
+    waterModal: null,
   };
 
   itemById(id){ return this.LIBRARY.find(i => i.id === id); }
@@ -516,6 +601,29 @@ class Component extends DCLogic {
       const items = s.order.map(id => ({ id, portion: s.selected[id].portion, customG: s.selected[id].customG || '' }));
       return { loggedMeals: { ...s.loggedMeals, [s.modalSlot]: { items } }, modalSlot: null };
     });
+  }
+
+  addWater(){
+    const id = ++this._rid;
+    this.setState(s => ({ water: s.water + 250, ripples: [...s.ripples, { id }] }));
+    setTimeout(() => { this.setState(s => ({ ripples: s.ripples.filter(r => r.id !== id) })); }, 680);
+  }
+  openWaterModal(){ this.setState({ waterModal: { target: String(this.state.waterGoal), error: '', phase: 'idle' } }); }
+  closeWaterModal(){ this.setState({ waterModal: null }); }
+  setWaterTarget(v){ const clean = String(v).replace(/[^0-9]/g, ''); this.setState(s => ({ waterModal: { ...s.waterModal, target: clean, error: '' } })); }
+  saveWaterGoal(){
+    const md = this.state.waterModal;
+    if (!md || md.phase !== 'idle') return;
+    if (!(Number(md.target) > 0)) { this.setState(s => ({ waterModal: { ...s.waterModal, error: 'Enter a valid daily goal in ml.' } })); return; }
+    this.setState(s => ({ waterModal: { ...s.waterModal, phase: 'loading', error: '' } }));
+    setTimeout(() => {
+      if (!this.state.waterModal) return;
+      this.setState(s => ({ waterModal: { ...s.waterModal, phase: 'success' } }));
+      setTimeout(() => {
+        if (!this.state.waterModal) return;
+        this.setState(s => ({ waterGoal: Number(s.waterModal.target), waterModal: null }));
+      }, 820);
+    }, 760);
   }
 
   renderVals(){
@@ -662,6 +770,41 @@ class Component extends DCLogic {
     }
     const ctaStyle = ctaEnabledFlag ? ctaEnabled : ctaDisabled;
 
+    // ---- water ----
+    const waterMl = s.water;
+    const waterGoal = s.waterGoal;
+    const waterReached = waterMl >= waterGoal;
+    const waterPct = Math.min(100, Math.round(waterMl / waterGoal * 100));
+    const waterFillColor = waterReached ? '#E8B800' : '#2ABFAD';
+    const waterBarStyle = `height:100%; width:${waterPct}%; background:${waterFillColor}; border-radius:5px; transition:width 0.6s cubic-bezier(0.22,1,0.36,1), background 0.3s ease;`;
+    const waterGoalText = `/ ${waterGoal}ml`;
+    const ripples = s.ripples.map(r => ({ id: r.id }));
+
+    const wm = s.waterModal;
+    const waterModalOpen = !!wm;
+    let waterModalVals = {};
+    if (wm) {
+      const phase = wm.phase;
+      const busy = phase === 'loading' || phase === 'success';
+      const inWrapBase = 'display:flex; align-items:center; gap:10px; background:#2A3A4A; border:1.5px solid #2A3A4A; border-radius:12px; padding:12px 14px; transition:border-color 150ms ease;';
+      const errBorder = ' border:1.5px solid rgba(224,116,106,0.7) !important;';
+      const saveBase = 'flex:1; display:flex; align-items:center; justify-content:center; border:none; font-family:Inter,sans-serif; font-size:15px; font-weight:600; padding:14px; border-radius:13px; transition:background 150ms ease, transform 80ms ease;';
+      const invalid = wm.error && !(Number(wm.target) > 0);
+      waterModalVals = {
+        waterModalTarget: wm.target,
+        waterModalError: !!wm.error,
+        waterModalErrorText: wm.error,
+        waterTargetWrapStyle: inWrapBase + (invalid ? errBorder : ''),
+        onWaterTargetInput: e => this.setWaterTarget(e.target.value),
+        onSaveWaterModal: busy ? () => {} : () => this.saveWaterGoal(),
+        onCloseWaterModal: () => this.closeWaterModal(),
+        waterSaveIdle: phase === 'idle',
+        waterSaveLoading: phase === 'loading',
+        waterSaveSuccess: phase === 'success',
+        waterSaveBtnStyle: saveBase + ' background:#E8B800; color:#141B24;' + (busy ? ' cursor:default;' : ' cursor:pointer;'),
+      };
+    }
+
     return {
       ringStyle, proteinBarStyle,
       consumedKcalText: fmt(consumedKcal),
@@ -678,6 +821,11 @@ class Component extends DCLogic {
       portionRows,
       addedItems, sidebarEmpty, totalKcalText, totalProteinText,
       ctaLabel, ctaStyle, ctaOnClick, ctaEnabledFlag, ctaDisabledFlag: !ctaEnabledFlag,
+      waterMl: String(waterMl), waterGoalText, waterBarStyle, waterReached, ripples,
+      onAddWater: e => { if (e && e.stopPropagation) e.stopPropagation(); this.addWater(); },
+      onEditWaterGoal: () => this.openWaterModal(),
+      waterModalOpen,
+      ...waterModalVals,
       onBack: () => this.gotoStep1(),
       onClose: () => this.closeModal(),
     };

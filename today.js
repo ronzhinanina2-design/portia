@@ -3,6 +3,7 @@
 const TODAY_DATE = new Date().toISOString().slice(0, 10);
 let GOAL_KCAL = Data.getGoals().calorieTarget;
 let GOAL_PROTEIN = Data.getGoals().proteinTarget;
+let GOAL_WATER = Data.getGoals().waterTarget;
 const SLOT_META = [
   ['breakfast', 'Breakfast'],
   ['lunch', 'Lunch'],
@@ -29,6 +30,8 @@ const state = {
   selected: {},
   order: [],
   showUndo: false,
+  waterRipples: [],
+  waterModal: null,
 };
 
 let undoTimeoutId = null;
@@ -326,6 +329,48 @@ function undoDoneForToday() {
   setState({ showUndo: false });
 }
 
+/* ============ Water ============ */
+
+function addWaterTap() {
+  Data.addWater(TODAY_DATE, 250);
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  setState((s) => ({ waterRipples: [...s.waterRipples, id] }));
+  setTimeout(() => {
+    setState((s) => ({ waterRipples: s.waterRipples.filter((x) => x !== id) }));
+  }, 650);
+}
+
+function openWaterModal() {
+  setState({ waterModal: { target: String(GOAL_WATER), error: '', phase: 'idle' } });
+}
+function closeWaterModal() {
+  setState({ waterModal: null });
+}
+function setWaterTarget(v) {
+  const clean = String(v).replace(/[^0-9]/g, '');
+  setState((s) => ({ waterModal: { ...s.waterModal, target: clean, error: '' } }));
+}
+function saveWaterModal() {
+  const wm = state.waterModal;
+  if (!wm || wm.phase !== 'idle') return;
+  if (!(Number(wm.target) > 0)) {
+    setState((s) => ({ waterModal: { ...s.waterModal, error: 'Enter a valid daily goal in ml.' } }));
+    return;
+  }
+  setState((s) => ({ waterModal: { ...s.waterModal, phase: 'loading', error: '' } }));
+  setTimeout(() => {
+    if (!state.waterModal) return;
+    setState((s) => ({ waterModal: { ...s.waterModal, phase: 'success' } }));
+    setTimeout(() => {
+      const wm2 = state.waterModal;
+      if (!wm2) return;
+      Data.setWaterGoal(Number(wm2.target));
+      GOAL_WATER = Data.getGoals().waterTarget;
+      setState({ waterModal: null });
+    }, 820);
+  }, 760);
+}
+
 /* ============ Rendering ============ */
 
 function renderNav() {
@@ -406,6 +451,17 @@ function renderHero() {
   const proteinPct = Math.round((consumedProtein / GOAL_PROTEIN) * 100);
   const proteinBarW = Math.min(100, proteinPct);
 
+  const waterMl = Data.getWaterForDate(TODAY_DATE);
+  const waterReached = waterMl >= GOAL_WATER;
+  const waterPct = Math.min(100, Math.round((waterMl / GOAL_WATER) * 100));
+  const waterFillColor = waterReached ? '#E8B800' : '#2ABFAD';
+  const ripplesHtml = state.waterRipples.map(() => `
+    <span style="position:absolute; inset:0; border-radius:11px; border:2px solid #2ABFAD; pointer-events:none; animation:waterRipple 0.65s ease-out forwards;"></span>
+  `).join('');
+  const waterReachedOverlay = waterReached
+    ? `<div style="position:absolute; inset:0; border-radius:20px; border:1px solid rgba(232,184,0,0.55); background:rgba(232,184,0,0.10); pointer-events:none;"></div>`
+    : '';
+
   return `
     <div style="background:#1C2733; border:1px solid #2A3A4A; border-radius:20px; padding:34px 32px 30px; display:flex; flex-direction:column; align-items:center;">
       <div class="section-label" style="align-self:flex-start; margin-bottom:14px;">Calories</div>
@@ -423,18 +479,89 @@ function renderHero() {
       <div style="margin-top:22px; font-size:15px; color:#8B9BAD;"><span style="color:#E8EDF2; font-weight:500;">${fmt(leftKcal)} kcal</span> left today</div>
     </div>
 
-    <div style="background:#1C2733; border:1px solid #2A3A4A; border-radius:20px; padding:26px 28px;">
-      <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:18px;">
-        <span class="section-label">Protein</span>
-        <span style="font-size:14px; color:#8B9BAD;">${proteinPct}%</span>
+    <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px;">
+      <div style="background:#1C2733; border:1px solid #2A3A4A; border-radius:20px; padding:22px 22px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; min-height:36px; margin-bottom:16px;">
+          <span class="section-label">Protein</span>
+          <span style="font-size:13px; color:#8B9BAD;">${proteinPct}%</span>
+        </div>
+        <div style="display:flex; align-items:baseline; gap:5px; margin-bottom:14px;">
+          <span style="font-size:38px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">${consumedProtein}</span>
+          <span style="font-size:18px; font-weight:500; color:#E8EDF2;">g</span>
+          <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">/ ${GOAL_PROTEIN}g</span>
+        </div>
+        <div style="height:8px; background:#2A3A4A; border-radius:5px; overflow:hidden;">
+          <div style="height:100%; width:${proteinBarW}%; background:#2ABFAD; border-radius:5px; transition:width 1.2s cubic-bezier(0.22,1,0.36,1);"></div>
+        </div>
       </div>
-      <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:16px;">
-        <span style="font-size:48px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">${consumedProtein}</span>
-        <span style="font-size:22px; font-weight:500; color:#E8EDF2;">g</span>
-        <span style="font-size:16px; color:#8B9BAD; margin-left:4px;">/ ${GOAL_PROTEIN}g</span>
+
+      <div data-action="edit-water-goal" title="Edit water goal" style="position:relative; background:#1C2733; border:1px solid #2A3A4A; border-radius:20px; padding:22px 22px; cursor:pointer; transition:border-color 150ms ease;" onmouseover="this.style.borderColor='#3D5166'" onmouseout="this.style.borderColor='#2A3A4A'">
+        <div style="position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; min-height:36px; margin-bottom:16px;">
+          <span class="section-label">Water</span>
+          <button data-action="add-water" title="Add 250ml" style="position:relative; width:36px; height:36px; border:none; border-radius:11px; background:rgba(42,191,173,0.14); color:#2ABFAD; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:background 150ms ease, transform 80ms ease;" onmouseover="this.style.background='rgba(42,191,173,0.24)'" onmouseout="this.style.background='rgba(42,191,173,0.14)'">
+            ${ripplesHtml}
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.116 4.104A1 1 0 0 1 6.11 3h11.78a1 1 0 0 1 .994 1.104l-1.626 16.256a1 1 0 0 1-.995.901H7.737a1 1 0 0 1-.995-.901z"></path><path d="M6 12a5 5 0 0 1 6 0 5 5 0 0 0 6 0"></path></svg>
+          </button>
+        </div>
+        <div style="position:relative; z-index:1; display:flex; align-items:baseline; gap:5px; margin-bottom:14px;">
+          <span style="font-size:38px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">${fmt(waterMl)}</span>
+          <span style="font-size:18px; font-weight:500; color:#E8EDF2;">ml</span>
+          <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">/ ${fmt(GOAL_WATER)}ml</span>
+        </div>
+        <div style="position:relative; z-index:1; height:8px; background:#2A3A4A; border-radius:5px; overflow:hidden;">
+          <div style="height:100%; width:${waterPct}%; background:${waterFillColor}; border-radius:5px; transition:width 0.6s cubic-bezier(0.22,1,0.36,1), background 0.3s ease;"></div>
+        </div>
+        ${waterReachedOverlay}
       </div>
-      <div style="height:8px; background:#2A3A4A; border-radius:5px; overflow:hidden;">
-        <div style="height:100%; width:${proteinBarW}%; background:#2ABFAD; border-radius:5px; transition:width 1.2s cubic-bezier(0.22,1,0.36,1);"></div>
+    </div>
+  `;
+}
+
+function renderWaterModal() {
+  const wm = state.waterModal;
+  if (!wm) return '';
+  const phase = wm.phase;
+  const busy = phase === 'loading' || phase === 'success';
+  const invalid = wm.error;
+  const errBorder = invalid ? 'border-color: rgba(224,116,106,0.7) !important;' : '';
+
+  const errorHtml = wm.error ? `
+    <div style="display:flex; align-items:center; gap:8px; background:rgba(224,90,90,0.10); border:1px solid rgba(224,90,90,0.35); border-radius:10px; padding:10px 12px; margin-bottom:16px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E0746A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4M12 16h.01"></path></svg>
+      <span style="font-size:13px; color:#E0746A;">${wm.error}</span>
+    </div>
+  ` : '';
+
+  let saveBtnContent;
+  if (phase === 'loading') {
+    saveBtnContent = `<span style="display:inline-flex; align-items:center; gap:9px;"><span style="width:16px; height:16px; border:2px solid rgba(20,27,36,0.35); border-top-color:#141B24; border-radius:50%; display:inline-block; animation:spin 0.7s linear infinite;"></span>Saving…</span>`;
+  } else if (phase === 'success') {
+    saveBtnContent = `<span style="display:inline-flex; align-items:center; gap:8px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#141B24" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>Saved</span>`;
+  } else {
+    saveBtnContent = 'Save';
+  }
+
+  return `
+    <div class="modal-overlay" style="z-index:60;">
+      <div style="position:relative; width:100%; max-width:440px; background:#1C2733; border:1px solid #2A3A4A; border-radius:22px; padding:26px 28px 24px; box-shadow:0 30px 80px rgba(0,0,0,0.55); font-family:Inter,sans-serif;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
+          <span class="modal-title">Water goal</span>
+          <div data-action="close-water-modal" class="icon-btn" style="width:30px; height:30px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">Daily goal</div>
+          <div style="display:flex; align-items:center; gap:10px; background:#2A3A4A; border:1.5px solid #2A3A4A; border-radius:12px; padding:12px 14px; ${errBorder}">
+            <input id="water-target-input" value="${escapeHtml(wm.target)}" placeholder="0" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:18px; font-weight:500; color:#E8EDF2;" />
+            <span style="font-size:14px; color:#8B9BAD;">ml</span>
+          </div>
+        </div>
+        ${errorHtml}
+        <div style="display:flex; gap:10px; margin-top:4px;">
+          <button data-action="close-water-modal" class="btn-ghost" style="flex:0 0 auto; padding:14px 22px;">Cancel</button>
+          <button data-action="save-water-modal" class="btn-primary" style="flex:1; ${busy ? 'cursor:default;' : ''}">${saveBtnContent}</button>
+        </div>
       </div>
     </div>
   `;
@@ -782,6 +909,7 @@ function render() {
         </div>
       </div>
       ${renderModal()}
+      ${renderWaterModal()}
     </div>
   `;
 
@@ -790,14 +918,14 @@ function render() {
 
 function captureFocus() {
   const el = document.activeElement;
-  if (!el || (el.id !== 'search-input' && !el.classList.contains('custom-g-input'))) return null;
+  if (!el || (el.id !== 'search-input' && el.id !== 'water-target-input' && !el.classList.contains('custom-g-input'))) return null;
   return { id: el.id, cls: el.classList.contains('custom-g-input'), dataId: el.dataset.id, selStart: el.selectionStart, selEnd: el.selectionEnd };
 }
 
 function restoreFocus(info) {
   if (!info) return;
   let el = null;
-  if (info.id === 'search-input') el = document.getElementById('search-input');
+  if (info.id === 'search-input' || info.id === 'water-target-input') el = document.getElementById(info.id);
   else if (info.cls) el = document.querySelector(`.custom-g-input[data-id="${info.dataId}"]`);
   if (el) {
     el.focus();
@@ -857,6 +985,18 @@ document.addEventListener('click', (e) => {
     case 'undo-done':
       undoDoneForToday();
       break;
+    case 'add-water':
+      addWaterTap();
+      break;
+    case 'edit-water-goal':
+      openWaterModal();
+      break;
+    case 'close-water-modal':
+      closeWaterModal();
+      break;
+    case 'save-water-modal':
+      if (!target.disabled) saveWaterModal();
+      break;
   }
 });
 
@@ -866,6 +1006,8 @@ document.addEventListener('input', (e) => {
     render();
   } else if (e.target.classList.contains('custom-g-input')) {
     setCustomG(e.target.dataset.id, e.target.value);
+  } else if (e.target.id === 'water-target-input') {
+    setWaterTarget(e.target.value);
   }
 });
 
@@ -873,5 +1015,6 @@ render();
 Data.ready().then(() => {
   GOAL_KCAL = Data.getGoals().calorieTarget;
   GOAL_PROTEIN = Data.getGoals().proteinTarget;
+  GOAL_WATER = Data.getGoals().waterTarget;
   render();
 });

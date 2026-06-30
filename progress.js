@@ -58,6 +58,7 @@ function metricData(key) {
   if (key === 'protein') return { label: 'Protein goal', kind: 'goal', unit: 'g', current: null, target: goals.proteinTarget };
   if (key === 'calorie') return { label: 'Calorie limit', kind: 'goal', unit: 'kcal', current: null, target: goals.calorieTarget };
   if (key === 'waist') return { label: 'Waist', kind: 'measure', unit: 'cm', current: goals.waistCurrent, target: goals.waistTarget };
+  if (key === 'water') return { label: 'Water', kind: 'goal', unit: 'ml', current: null, target: goals.waterTarget };
   return { label: 'Hips', kind: 'measure', unit: 'cm', current: goals.hipsCurrent, target: goals.hipsTarget };
 }
 function openModalPg(key) {
@@ -124,6 +125,8 @@ function applyModalPg() {
     const patch = { hipsTarget: tgt, hipsCurrent: cur };
     if (goals.hipsStart == null && cur != null) patch.hipsStart = cur;
     Data.updateGoals(patch);
+  } else if (md.key === 'water') {
+    Data.setWaterGoal(tgt);
   }
   setPgState({ modal: null });
 }
@@ -139,6 +142,7 @@ function badgeData() {
     { id: 'fl', type: 'logging', icon: 'check', label: 'First log', unlocked: streak.totalDaysTracked >= 1, date: 'May 17' },
     { id: 'fw', type: 'logging', icon: 'cal', label: 'First week', unlocked: streak.totalDaysTracked >= 7, date: 'May 24' },
     { id: 'fm', type: 'logging', icon: 'cal', label: 'First month', unlocked: streak.totalDaysTracked >= 30, date: 'Jun 16' },
+    { id: 'hs', type: 'logging', icon: 'glass', label: 'Hydration Station', unlocked: Data.getWaterStreak().currentStreak >= 7 },
   ];
 }
 function buildBadges() {
@@ -181,6 +185,7 @@ function buildBadges() {
     let iconSvg;
     if (b.icon === 'star') iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${iconFill}" stroke="${iconStroke}" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"></path></svg>`;
     else if (b.icon === 'check') iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>`;
+    else if (b.icon === 'glass') iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.116 4.104A1 1 0 0 1 6.11 3h11.78a1 1 0 0 1 .994 1.104l-1.626 16.256a1 1 0 0 1-.995.901H7.737a1 1 0 0 1-.995-.901z"></path><path d="M6 12a5 5 0 0 1 6 0 5 5 0 0 0 6 0"></path></svg>`;
     else iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>`;
 
     const lockSvg = !b.unlocked ? `
@@ -363,6 +368,7 @@ function renderSmallCards() {
     { key: 'calorie', label: 'Calorie limit', kind: 'goal', unit: 'kcal', sub: 'Daily limit', target: goals.calorieTarget },
     { key: 'waist', label: 'Waist', kind: 'measure', unit: 'cm', start: goals.waistStart, current: goals.waistCurrent, target: goals.waistTarget },
     { key: 'hips', label: 'Hips', kind: 'measure', unit: 'cm', start: goals.hipsStart, current: goals.hipsCurrent, target: goals.hipsTarget },
+    { key: 'water', label: 'Water', kind: 'goal', unit: 'ml', sub: 'Daily target', target: goals.waterTarget },
   ];
 
   const cardsHtml = cardsMeta.map((m) => {

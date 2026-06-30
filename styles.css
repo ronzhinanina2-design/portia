@@ -431,6 +431,13 @@ input::placeholder { color: var(--fog-dark); }
   50%       { box-shadow: 0 0 0 3px rgba(232,184,0,0.18); }
 }
 
+/* ============ Today tab — water ============ */
+
+@keyframes waterRipple {
+  from { transform: scale(0.65); opacity: 0.65; }
+  to   { transform: scale(2.2);  opacity: 0;    }
+}
+
 /* ============ Modal ============ */
 
 .modal-overlay {

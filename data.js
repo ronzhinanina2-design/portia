@@ -149,8 +149,17 @@ function loadData() {
 function saveData(data) {
   cache = data;
   const now = Date.now();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  localStorage.setItem(LOCAL_UPDATED_KEY, String(now));
+  // localStorage has a small per-origin quota (~5MB) and the blob embeds every
+  // uploaded photo as base64, so it can throw QuotaExceededError once enough
+  // photos pile up. If we let that throw escape here, the line below that
+  // pushes to Supabase never runs — the write is lost everywhere and silently
+  // disappears on next load even though the UI looked like it saved.
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(LOCAL_UPDATED_KEY, String(now));
+  } catch (e) {
+    console.warn('localStorage save failed (quota?), relying on Supabase', e);
+  }
   pushToRemote(data, now);
 }
 

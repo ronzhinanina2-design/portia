@@ -106,7 +106,10 @@ function applyModalPg() {
   const tgt = Number(md.target);
   if (md.key === 'weight') {
     Data.addWeightEntry({ date: new Date().toISOString().slice(0, 10), value: cur });
-    Data.updateGoals({ weightTarget: tgt });
+    const goals = Data.getGoals();
+    const patch = { weightTarget: tgt };
+    if (goals.weightStart == null && cur != null) patch.weightStart = cur;
+    Data.updateGoals(patch);
   } else if (md.key === 'protein') {
     Data.updateGoals({ proteinTarget: tgt });
   } else if (md.key === 'calorie') {
@@ -242,7 +245,7 @@ function renderWeightCard() {
   const goals = Data.getGoals();
   const all = fullWeightSeries();
   const current = all.length ? all[all.length - 1].w : null;
-  const start = goals.weightStart;
+  const start = goals.weightStart != null ? goals.weightStart : (all.length ? all[0].w : null);
   const target = goals.weightTarget;
   const filled = current != null;
 

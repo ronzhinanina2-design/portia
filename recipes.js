@@ -355,9 +355,13 @@ function renderGridAndEmpty(isItems) {
       broken = m.broken;
       macroText = broken ? 'Missing ingredient' : `${m.kcal} kcal · ${m.protein}g protein`;
     }
-    const shownTags = x.tags.slice(0, 2);
-    const extra = x.tags.length > 2 ? `<span style="font-size:11px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:3px 9px; border-radius:6px;">+${x.tags.length - 2}</span>` : '';
-    const tagChipsHtml = shownTags.map((t) => `<span style="font-size:11px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:3px 9px; border-radius:6px;">${escapeHtmlRc(t)}</span>`).join('') + extra;
+    const tagChipStyle = 'font-size:11px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:3px 9px; border-radius:6px; white-space:nowrap; flex-shrink:0;';
+    const tagChipsHtml = `
+      <div class="rc-tags-row" data-total="${x.tags.length}" style="display:flex; flex-wrap:nowrap; overflow:hidden; gap:6px; width:100%;">
+        ${x.tags.map((t) => `<span class="rc-tag-chip" style="${tagChipStyle}">${escapeHtmlRc(t)}</span>`).join('')}
+        <span class="rc-tags-more" style="${tagChipStyle} display:none;"></span>
+      </div>
+    `;
 
     const borderStyle = broken ? 'border:1px solid rgba(232,184,0,0.4);' : 'border:1px solid #2A3A4A;';
     const fav = !!x.favourite;
@@ -365,53 +369,76 @@ function renderGridAndEmpty(isItems) {
       ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="#2ABFAD" stroke="#2ABFAD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>`
       : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8EDF2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>`;
 
-    const photoTopOffset = broken ? '42px' : '10px';
+    const photoUploadAttrs = `data-action="upload-photo" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="${x.imageUrl ? 'Tap to replace photo' : 'Tap to add a photo'}"`;
+    const placeholderIconSize = isItems ? 26 : 34;
+    const photoInnerHtml = `
+      ${x.imageUrl ? `<img src="${x.imageUrl}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" alt="">` : ''}
+      ${x.imageUrl ? `<div class="rc-photo-scrim" style="position:absolute; inset:0; background:rgba(10,14,20,0.45);"></div>` : ''}
+      ${broken ? `
+        <div style="position:absolute; top:10px; left:10px; display:flex; align-items:center; gap:5px; background:rgba(232,184,0,0.16); border:1px solid rgba(232,184,0,0.4); color:#E8B800; font-size:11px; font-weight:600; padding:4px 9px; border-radius:7px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
+          Broken
+        </div>
+      ` : ''}
+      ${!isItems ? `
+        <div style="position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:5px; background:rgba(42,191,173,0.14); border:1px solid rgba(42,191,173,0.35); color:#2ABFAD; font-size:11px; font-weight:600; padding:4px 9px; border-radius:7px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17l-6-4-6 4z"></path></svg>
+          Recipe
+        </div>
+      ` : ''}
+      ${x.imageUrl ? `
+        <div class="rc-photo-actions" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <div title="Replace photo" style="width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); color:#E8EDF2;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+          </div>
+          <div data-action="remove-photo" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="Remove photo" style="width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); cursor:pointer; color:#E8EDF2; transition:border-color 150ms ease, transform 80ms ease;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
+          </div>
+        </div>
+      ` : ''}
+      ${!x.imageUrl ? `
+        <svg width="${placeholderIconSize}" height="${placeholderIconSize}" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+        <div class="rc-photo-scrim" style="position:absolute; inset:0; background:rgba(10,14,20,0.55);"></div>
+        <div class="rc-photo-actions" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+          <div title="Upload photo" style="width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); color:#E8EDF2;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"></path><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path></svg>
+          </div>
+        </div>
+      ` : ''}
+    `;
+
+    if (isItems) {
+      return `
+        <div class="rc-card" data-action="open-detail" data-type="item" data-id="${x.id}" style="position:relative; display:flex; align-items:stretch; background:#1C2733; ${borderStyle} border-radius:14px; overflow:hidden; cursor:pointer; transition:transform 0.12s ease, border-color 0.15s ease;">
+          <div ${photoUploadAttrs} style="position:relative; width:132px; height:132px; flex-shrink:0; background:#2A3A4A; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+            ${photoInnerHtml}
+            <div class="rc-fav-btn" data-action="toggle-fav" data-type="item" data-id="${x.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" style="position:absolute; bottom:12px; right:12px; width:28px; height:28px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.55); border:1px solid rgba(255,255,255,0.1); cursor:pointer; transition:border-color 150ms ease, transform 80ms ease;">
+              ${favHeartSvg}
+            </div>
+          </div>
+          <div style="flex:1; min-width:0; padding:9px 14px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div style="font-size:14px; font-weight:600; color:#E8EDF2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtmlRc(x.name)}</div>
+            <div>
+              <div style="font-size:12px; color:#8B9BAD;">${macroText}</div>
+              <div style="margin-top:6px;">${tagChipsHtml}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     return `
-      <div class="rc-card" data-action="open-detail" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" style="position:relative; background:#1C2733; ${borderStyle} border-radius:16px; overflow:hidden; cursor:pointer; transition:transform 0.12s ease, border-color 0.15s ease;">
-        <div data-action="upload-photo" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="${x.imageUrl ? 'Tap to replace photo' : 'Tap to add a photo'}" style="position:relative; width:100%; aspect-ratio:16/9; background:#2A3A4A; display:flex; align-items:center; justify-content:center; cursor:pointer;">
-          ${x.imageUrl ? `<img src="${x.imageUrl}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" alt="">` : ''}
-          ${x.imageUrl ? `<div class="rc-photo-scrim" style="position:absolute; inset:0; background:rgba(10,14,20,0.45);"></div>` : ''}
-          ${broken ? `
-            <div style="position:absolute; top:10px; left:10px; display:flex; align-items:center; gap:5px; background:rgba(232,184,0,0.16); border:1px solid rgba(232,184,0,0.4); color:#E8B800; font-size:11px; font-weight:600; padding:4px 9px; border-radius:7px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>
-              Broken
-            </div>
-          ` : ''}
-          ${!isItems ? `
-            <div style="position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:5px; background:rgba(42,191,173,0.14); border:1px solid rgba(42,191,173,0.35); color:#2ABFAD; font-size:11px; font-weight:600; padding:4px 9px; border-radius:7px;">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17l-6-4-6 4z"></path></svg>
-              Recipe
-            </div>
-          ` : ''}
-          ${x.imageUrl ? `
-            <div class="rc-photo-actions" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px;">
-              <div style="display:flex; align-items:center; gap:6px; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); color:#E8EDF2; font-size:12px; font-weight:600; padding:7px 13px; border-radius:9px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
-                Replace
-              </div>
-              <div data-action="remove-photo" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="Remove photo" style="width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); cursor:pointer; color:#E8EDF2; transition:border-color 150ms ease, transform 80ms ease;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
-              </div>
-            </div>
-          ` : ''}
-          <div class="rc-fav-btn" data-action="toggle-fav" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" style="position:absolute; bottom:10px; right:10px; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.55); border:1px solid rgba(255,255,255,0.1); cursor:pointer; transition:border-color 150ms ease, transform 80ms ease;">
+      <div class="rc-card" data-action="open-detail" data-type="recipe" data-id="${x.id}" style="position:relative; background:#1C2733; ${borderStyle} border-radius:16px; overflow:hidden; cursor:pointer; transition:transform 0.12s ease, border-color 0.15s ease;">
+        <div ${photoUploadAttrs} style="position:relative; width:100%; aspect-ratio:16/9; background:#2A3A4A; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+          ${photoInnerHtml}
+          <div class="rc-fav-btn" data-action="toggle-fav" data-type="recipe" data-id="${x.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" style="position:absolute; bottom:10px; right:10px; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.55); border:1px solid rgba(255,255,255,0.1); cursor:pointer; transition:border-color 150ms ease, transform 80ms ease;">
             ${favHeartSvg}
           </div>
-          ${!x.imageUrl ? `
-            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>
-            <div class="rc-photo-scrim" style="position:absolute; inset:0; background:rgba(10,14,20,0.55);"></div>
-            <div class="rc-photo-actions" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
-              <div style="display:flex; align-items:center; gap:6px; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); color:#E8EDF2; font-size:12px; font-weight:600; padding:7px 13px; border-radius:9px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"></path><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path></svg>
-                Upload photo
-              </div>
-            </div>
-          ` : ''}
         </div>
         <div style="padding:13px 14px 15px;">
           <div style="font-size:15px; font-weight:600; color:#E8EDF2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtmlRc(x.name)}</div>
           <div style="font-size:12px; color:#8B9BAD; margin-top:4px;">${macroText}</div>
-          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; min-height:22px;">${tagChipsHtml}</div>
+          <div style="margin-top:11px; min-height:22px;">${tagChipsHtml}</div>
         </div>
       </div>
     `;
@@ -443,7 +470,7 @@ function renderGridAndEmpty(isItems) {
       </div>
     `;
   } else {
-    bodyHtml = `<div class="rc-grid">${cardsHtml}</div>`;
+    bodyHtml = `<div class="rc-grid${isItems ? ' rc-grid-items' : ''}">${cardsHtml}</div>`;
     if (!hasCards) {
       bodyHtml = `<div style="padding:60px 20px; text-align:center; color:#8B9BAD; font-size:14px;">Nothing matches your search or filter.</div>`;
     }
@@ -813,7 +840,48 @@ function renderRecipes() {
   `;
 
   restoreFocusRc(focusInfo);
+  adjustTagOverflow();
 }
+
+// Tag chips are rendered in full (nowrap, overflow:hidden), then measured
+// here so each card shows as many as actually fit its real width before
+// collapsing the rest into a "+N" chip — a static slice(0, N) can't know
+// the rendered width of variable-length tag text ahead of time.
+function adjustTagOverflow() {
+  document.querySelectorAll('.rc-tags-row').forEach((row) => {
+    const chips = Array.from(row.querySelectorAll('.rc-tag-chip'));
+    const moreChip = row.querySelector('.rc-tags-more');
+    if (!chips.length || !moreChip) return;
+    chips.forEach((c) => { c.style.display = ''; });
+    moreChip.style.display = 'none';
+    const containerWidth = row.clientWidth;
+    if (containerWidth === 0) return;
+    const gap = 6;
+    let used = 0;
+    let shown = 0;
+    for (let i = 0; i < chips.length; i++) {
+      const next = used + (shown > 0 ? gap : 0) + chips[i].offsetWidth;
+      if (next > containerWidth) break;
+      used = next;
+      shown++;
+    }
+    if (shown === chips.length) return;
+    moreChip.textContent = `+${chips.length - shown}`;
+    moreChip.style.display = '';
+    while (shown > 0 && used + gap + moreChip.offsetWidth > containerWidth) {
+      shown--;
+      used -= chips[shown].offsetWidth + (shown > 0 ? gap : 0);
+      moreChip.textContent = `+${chips.length - shown}`;
+    }
+    for (let i = shown; i < chips.length; i++) chips[i].style.display = 'none';
+  });
+}
+
+let tagOverflowResizeRaf = null;
+window.addEventListener('resize', () => {
+  if (tagOverflowResizeRaf) cancelAnimationFrame(tagOverflowResizeRaf);
+  tagOverflowResizeRaf = requestAnimationFrame(adjustTagOverflow);
+});
 
 const RC_FOCUS_IDS = ['rc-search', 'rc-f-name', 'rc-f-kcal', 'rc-f-protein', 'rc-f-fat', 'rc-f-carbs', 'rc-ing-search', 'rc-new-tag'];
 function captureFocusRc() {

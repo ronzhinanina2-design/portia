@@ -585,13 +585,13 @@ function renderMeals() {
               </div>`;
       return `
         <div style="margin-bottom:12px;">
-          <div class="${locked ? '' : 'meal-card'}" style="background:#1C2733; border:1px solid #2A3A4A; border-radius:16px; padding:18px 20px; display:flex; align-items:center; gap:16px;">
+          <div class="${locked ? '' : 'meal-card'}" style="background:#1C2733; border:1px solid #2A3A4A; border-radius:16px; padding:18px 20px; display:flex; align-items:flex-start; gap:16px; min-height:78px;">
             <div style="width:36px; height:36px; border-radius:10px; background:rgba(42,191,173,0.14); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
             </div>
             <div style="flex:1; min-width:0;">
               <div class="section-label" style="margin-bottom:3px;">${label}</div>
-              <div style="font-size:16px; font-weight:500; color:#E8EDF2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(sm.names.join(', '))}</div>
+              <div style="font-size:16px; font-weight:500; color:#E8EDF2; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden;">${escapeHtml(sm.names.join(', '))}</div>
             </div>
             <div style="position:relative; flex-shrink:0; min-width:120px; display:flex; justify-content:flex-end; align-items:center; min-height:42px;">
               <div class="meal-stats" style="text-align:right; transition:opacity 0.15s ease;">
@@ -903,7 +903,7 @@ function render() {
           <div style="display:flex; flex-direction:column; gap:22px;">
             ${renderHero()}
           </div>
-          <div style="display:flex; flex-direction:column;">
+          <div style="display:flex; flex-direction:column; min-width:0;">
             ${renderMeals()}
           </div>
         </div>

@@ -384,20 +384,29 @@ function renderGridAndEmpty(isItems) {
             </div>
           ` : ''}
           ${x.imageUrl ? `
-            <div class="rc-photo-actions" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+            <div class="rc-photo-actions" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:8px;">
               <div style="display:flex; align-items:center; gap:6px; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); color:#E8EDF2; font-size:12px; font-weight:600; padding:7px 13px; border-radius:9px;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
                 Replace
               </div>
-            </div>
-            <div class="rc-photo-actions" data-action="remove-photo" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="Remove photo" style="position:absolute; top:${photoTopOffset}; left:10px; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); cursor:pointer; color:#E8EDF2; transition:border-color 150ms ease, transform 80ms ease;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+              <div data-action="remove-photo" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="Remove photo" style="width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); cursor:pointer; color:#E8EDF2; transition:border-color 150ms ease, transform 80ms ease;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
+              </div>
             </div>
           ` : ''}
           <div class="rc-fav-btn" data-action="toggle-fav" data-type="${isItems ? 'item' : 'recipe'}" data-id="${x.id}" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" style="position:absolute; bottom:10px; right:10px; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:rgba(20,27,36,0.55); border:1px solid rgba(255,255,255,0.1); cursor:pointer; transition:border-color 150ms ease, transform 80ms ease;">
             ${favHeartSvg}
           </div>
-          ${!x.imageUrl ? `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>` : ''}
+          ${!x.imageUrl ? `
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+            <div class="rc-photo-scrim" style="position:absolute; inset:0; background:rgba(10,14,20,0.55);"></div>
+            <div class="rc-photo-actions" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+              <div style="display:flex; align-items:center; gap:6px; background:rgba(20,27,36,0.7); border:1px solid rgba(255,255,255,0.12); color:#E8EDF2; font-size:12px; font-weight:600; padding:7px 13px; border-radius:9px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"></path><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path></svg>
+                Upload photo
+              </div>
+            </div>
+          ` : ''}
         </div>
         <div style="padding:13px 14px 15px;">
           <div style="font-size:15px; font-weight:600; color:#E8EDF2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtmlRc(x.name)}</div>

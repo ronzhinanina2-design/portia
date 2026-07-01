@@ -34,6 +34,13 @@ html, body {
 
 input::placeholder { color: var(--fog-dark); }
 
+/* Suppresses transitions for one paint cycle right after a full re-render —
+   without this, every keystroke recreates focused inputs from their unfocused
+   base style and the focus-color transition visibly replays as a flicker.
+   Scoped to .no-transitions (modals + search bars), never the whole page,
+   so long-running data animations elsewhere (calorie ring, card flips) are untouched. */
+.no-transitions, .no-transitions * { transition: none !important; }
+
 /* ============ Page shell ============ */
 
 .page-shell {
@@ -191,6 +198,7 @@ input::placeholder { color: var(--fog-dark); }
   transition: border-color 150ms ease, background 150ms ease;
 }
 .btn-ghost:hover { border-color: var(--storm-dark); background: rgba(255,255,255,0.04); }
+.btn-ghost:active { transform: scale(0.985); }
 
 .btn-edit-outline {
   flex: 1;

@@ -75,7 +75,7 @@ function blankItemDraft() {
   return { name: '', kcal: '', protein: '', fat: '', carbs: '', tags: [], addingTag: false, newTag: '', imageUrl: null };
 }
 function blankRecipeDraft() {
-  return { name: '', ingredients: [], tags: [], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: null };
+  return { name: '', ingredients: [], tags: [], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: null, notes: '', notesEditing: false, notesDraft: '' };
 }
 function openForm(type, id) {
   let draft;
@@ -87,7 +87,7 @@ function openForm(type, id) {
   } else {
     if (id) {
       const r = recipeByIdRc(id);
-      draft = { name: r.name, ingredients: r.ingredients.map((i) => ({ ...i })), tags: [...r.tags], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: r.imageUrl || null };
+      draft = { name: r.name, ingredients: r.ingredients.map((i) => ({ ...i })), tags: [...r.tags], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: r.imageUrl || null, notes: r.notes || '', notesEditing: false, notesDraft: '' };
     } else draft = blankRecipeDraft();
   }
   setRcState({ panel: { mode: 'form', type, id, draft } });
@@ -136,6 +136,19 @@ function setIngGrams(idx, v) {
     return { panel: { ...s.panel, draft: { ...d, ingredients } } };
   });
 }
+function startEditNotes() {
+  rcPendingFocus = { selector: '#rc-f-notes' };
+  setRcState((s) => ({ panel: { ...s.panel, draft: { ...s.panel.draft, notesEditing: true, notesDraft: s.panel.draft.notes } } }));
+}
+function saveNotes() {
+  setRcState((s) => {
+    const d = s.panel.draft;
+    return { panel: { ...s.panel, draft: { ...d, notes: d.notesDraft, notesEditing: false } } };
+  });
+}
+function cancelNotes() {
+  setRcState((s) => ({ panel: { ...s.panel, draft: { ...s.panel.draft, notesEditing: false } } }));
+}
 function startReplace(idx) {
   setRcState((s) => ({ panel: { ...s.panel, draft: { ...s.panel.draft, replacing: idx, ingSearch: '' } } }));
 }
@@ -159,7 +172,7 @@ function saveRecipe() {
   const s = rcState;
   const d = s.panel.draft, id = s.panel.id;
   const ingredients = d.ingredients.map((ing) => ({ itemId: ing.itemId, grams: Number(ing.grams) || 0 }));
-  const rec = { name: d.name.trim() || 'Untitled recipe', ingredients, tags: [...d.tags], imageUrl: d.imageUrl || null };
+  const rec = { name: d.name.trim() || 'Untitled recipe', ingredients, tags: [...d.tags], imageUrl: d.imageUrl || null, notes: d.notes || '' };
   if (id) Data.updateRecipe(id, rec);
   else Data.addRecipe(rec);
   setRcState({ panel: null });
@@ -308,7 +321,7 @@ function renderTopBar(isItems) {
         <div class="segmented-pill${!isItems ? ' on' : ''}" data-action="set-tab" data-tab="recipes">Recipes</div>
       </div>
     </div>
-    <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+    <div class="no-transitions" style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
       <div style="position:relative; flex:1; max-width:340px;">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; left:14px; top:50%; transform:translateY(-50%);"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4-4"></path></svg>
         <input id="rc-search" class="input" value="${escapeHtmlRc(s.search)}" placeholder="${isItems ? 'Search items…' : 'Search recipes…'}" style="width:100%; padding:11px 14px 11px 40px;" />
@@ -506,7 +519,7 @@ function renderDetailPanel(panel) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
           </div>
         </div>
-        <div style="flex:1; min-height:0; overflow-y:auto; padding:6px 34px 30px;">
+        <div class="rc-scroll-body" style="flex:1; min-height:0; overflow-y:auto; padding:6px 34px 30px;">
           <div style="position:relative; width:100%; aspect-ratio:16/9; background:#2A3A4A; border-radius:14px; display:flex; align-items:center; justify-content:center; margin-bottom:24px; overflow:hidden;">
             ${it.imageUrl ? `<img src="${it.imageUrl}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;" alt="">` : `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"></rect><circle cx="8.5" cy="8.5" r="1.6"></circle><path d="M21 15l-5-5L5 21"></path></svg>`}
           </div>
@@ -586,6 +599,10 @@ function renderDetailPanel(panel) {
         <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:28px;">${ingRowsHtml}</div>
         <div class="section-label" style="margin-bottom:6px;">Total macros</div>
         <div>${macroRowsHtml}</div>
+        ${r.notes && r.notes.trim() ? `
+          <div class="section-label" style="margin-top:24px; margin-bottom:10px;">Notes</div>
+          <div style="font-size:14px; color:#E8EDF2; line-height:1.55; white-space:pre-wrap;">${escapeHtmlRc(r.notes)}</div>
+        ` : ''}
       </div>
       <div style="display:flex; gap:10px; padding:18px 34px; border-top:1px solid #2A3A4A;">
         <button data-action="edit-from-detail" data-type="recipe" data-id="${r.id}" class="btn-edit-outline">
@@ -630,6 +647,30 @@ function renderTagChipsEditor(draft) {
   return `
     <div class="section-label" style="margin-bottom:8px; text-transform:none; letter-spacing:0; font-weight:600; font-size:12px;">Tags</div>
     <div style="display:flex; flex-wrap:wrap; gap:8px;">${chipsHtml}${addingTagHtml}</div>
+  `;
+}
+
+function renderNotesEditor(d) {
+  const hasSaved = d.notes.trim().length > 0;
+
+  if (d.notesEditing) {
+    return `
+      <div style="margin-bottom:24px;">
+        <div style="font-size:12px; font-weight:600; color:#8B9BAD; margin-bottom:8px;">Notes</div>
+        <textarea id="rc-f-notes" class="input-card" placeholder="Add a tip…" style="width:100%; min-height:96px; resize:none; font-family:'Inter',sans-serif; line-height:1.5;">${escapeHtmlRc(d.notesDraft)}</textarea>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button data-action="cancel-notes" class="btn-ghost" style="flex:1; padding:11px 16px; font-size:14px;">Cancel</button>
+          <button data-action="save-notes" class="btn-primary" style="flex:1; padding:11px 16px; font-size:14px;">Save</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div style="margin-bottom:24px;">
+      <div style="font-size:12px; font-weight:600; color:#8B9BAD; margin-bottom:8px;">Notes</div>
+      <div data-action="edit-notes" class="input-card" style="width:100%; cursor:text; white-space:pre-wrap; line-height:1.5; ${hasSaved ? 'min-height:96px;' : ''} color:${hasSaved ? '#E8EDF2' : '#6B7E91'};">${hasSaved ? escapeHtmlRc(d.notes) : 'Add a tip…'}</div>
+    </div>
   `;
 }
 
@@ -759,6 +800,7 @@ function renderFormPanel(panel) {
       ${resultsBoxHtml}
       ${d.ingredients.length > 0 ? `<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:24px;">${ingRowsHtml}</div>` : ''}
       ${totalsHtml}
+      ${renderNotesEditor(d)}
       ${renderTagChipsEditor(d)}
     `;
   }
@@ -771,7 +813,7 @@ function renderFormPanel(panel) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
         </div>
       </div>
-      <div style="flex:1; min-height:0; overflow-y:auto; padding:24px 34px;">
+      <div class="rc-scroll-body" style="flex:1; min-height:0; overflow-y:auto; padding:24px 34px;">
         ${bodyHtml}
       </div>
       <div style="display:flex; gap:10px; padding:16px 34px 20px; border-top:1px solid #2A3A4A;">
@@ -793,7 +835,7 @@ function renderPanelOverlay() {
   else innerHtml = renderFormPanel(panel);
 
   return `
-    <div class="modal-overlay" data-action="overlay-click">
+    <div class="modal-overlay no-transitions" data-action="overlay-click">
       <div style="position:relative; width:100%; max-width:640px; max-height:88vh; background:#1C2733; border:1px solid #2A3A4A; border-radius:22px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.55);" data-stop="1">
         ${innerHtml}
       </div>
@@ -824,6 +866,7 @@ function renderConfirmDelete() {
 function renderRecipes() {
   const app = document.getElementById('app');
   const focusInfo = captureFocusRc();
+  const scrollInfo = captureScrollRc();
   const isItems = rcState.tab === 'items';
 
   app.innerHTML = `
@@ -839,9 +882,40 @@ function renderRecipes() {
     </div>
   `;
 
+  restoreScrollRc(scrollInfo);
   restoreFocusRc(focusInfo);
+  clearNoTransitionsRc();
   adjustTagOverflow();
+
+  if (rcPendingFocus) {
+    const el = document.querySelector(rcPendingFocus.selector);
+    if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {} }
+    rcPendingFocus = null;
+  }
 }
+
+// Modal/search templates render with a `no-transitions` class baked in so every
+// full re-render (triggered on every keystroke) recreates focused inputs without
+// replaying their focus-color transition as a flicker; this lifts it after
+// one paint so real transitions (hover, etc.) resume working normally.
+function clearNoTransitionsRc() {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.querySelectorAll('.no-transitions').forEach((el) => el.classList.remove('no-transitions'));
+  }));
+}
+
+// Full-page re-renders on every keystroke destroy and recreate the scrollable
+// containers below, so their scrollTop resets to 0 unless captured here first —
+// without this, typing while scrolled down in the modal visibly jerks back to the top.
+function captureScrollRc() {
+  return Array.from(document.querySelectorAll('.rc-scroll-body')).map((el) => el.scrollTop);
+}
+function restoreScrollRc(tops) {
+  const els = document.querySelectorAll('.rc-scroll-body');
+  els.forEach((el, i) => { if (tops[i] != null) el.scrollTop = tops[i]; });
+}
+
+let rcPendingFocus = null;
 
 // Tag chips are rendered in full (nowrap, overflow:hidden), then measured
 // here so each card shows as many as actually fit its real width before
@@ -883,7 +957,7 @@ window.addEventListener('resize', () => {
   tagOverflowResizeRaf = requestAnimationFrame(adjustTagOverflow);
 });
 
-const RC_FOCUS_IDS = ['rc-search', 'rc-f-name', 'rc-f-kcal', 'rc-f-protein', 'rc-f-fat', 'rc-f-carbs', 'rc-ing-search', 'rc-new-tag'];
+const RC_FOCUS_IDS = ['rc-search', 'rc-f-name', 'rc-f-kcal', 'rc-f-protein', 'rc-f-fat', 'rc-f-carbs', 'rc-ing-search', 'rc-new-tag', 'rc-f-notes'];
 function captureFocusRc() {
   const el = document.activeElement;
   if (!el) return null;
@@ -930,12 +1004,15 @@ document.addEventListener('click', (e) => {
     case 'cancel-delete': cancelDelete(); break;
     case 'confirm-delete': doDelete(); break;
     case 'toggle-draft-tag': toggleDraftTag(target.dataset.tag); break;
-    case 'start-tag': patchDraft({ addingTag: true }); break;
+    case 'start-tag': rcPendingFocus = { selector: '#rc-new-tag' }; patchDraft({ addingTag: true }); break;
     case 'commit-tag': commitNewTag(); break;
     case 'pick-ingredient': addIngredient(id); break;
     case 'pick-replace': doReplace(rcState.panel.draft.replacing, id); break;
     case 'start-replace': startReplace(Number(target.dataset.idx)); break;
     case 'remove-ingredient': removeIngredient(Number(target.dataset.idx)); break;
+    case 'edit-notes': startEditNotes(); break;
+    case 'save-notes': saveNotes(); break;
+    case 'cancel-notes': cancelNotes(); break;
     case 'save-item': if (!target.disabled) saveItem(); break;
     case 'save-recipe': if (!target.disabled) saveRecipe(); break;
     case 'upload-photo':
@@ -956,6 +1033,7 @@ document.addEventListener('input', (e) => {
   if (id === 'rc-f-carbs') { patchDraft({ carbs: cleanNumRc(e.target.value) }); return; }
   if (id === 'rc-ing-search') { patchDraft({ ingSearch: e.target.value }); return; }
   if (id === 'rc-new-tag') { patchDraft({ newTag: e.target.value }); return; }
+  if (id === 'rc-f-notes') { patchDraft({ notesDraft: e.target.value }); return; }
   if (e.target.classList.contains('rc-ing-gram')) { setIngGrams(Number(e.target.dataset.idx), e.target.value); return; }
 });
 

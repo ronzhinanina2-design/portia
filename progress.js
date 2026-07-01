@@ -534,7 +534,7 @@ function renderModalPg() {
   }
 
   return `
-    <div class="modal-overlay">
+    <div class="modal-overlay no-transitions">
       <div style="position:relative; width:100%; max-width:440px; background:#1C2733; border:1px solid #2A3A4A; border-radius:22px; padding:26px 28px 24px; box-shadow:0 30px 80px rgba(0,0,0,0.55); font-family:Inter,sans-serif;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
           <span class="modal-title">${md.label}</span>
@@ -565,8 +565,35 @@ function escapeAttr(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+const PG_FOCUS_IDS = ['pg-current', 'pg-target', 'pg-date'];
+
+function captureFocusPg() {
+  const el = document.activeElement;
+  if (!el || !PG_FOCUS_IDS.includes(el.id)) return null;
+  return { id: el.id, selStart: el.selectionStart, selEnd: el.selectionEnd };
+}
+function restoreFocusPg(info) {
+  if (!info) return;
+  const el = document.getElementById(info.id);
+  if (el) {
+    el.focus();
+    try { el.setSelectionRange(info.selStart, info.selEnd); } catch (e) {}
+  }
+}
+
+// Modal templates render with a `no-transitions` class baked in so every full
+// re-render (triggered on every keystroke) recreates focused inputs without
+// replaying their focus-color transition as a flicker; this lifts it after
+// one paint so real transitions (hover, etc.) resume working normally.
+function clearNoTransitionsPg() {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.querySelectorAll('.no-transitions').forEach((el) => el.classList.remove('no-transitions'));
+  }));
+}
+
 function renderProgress() {
   const app = document.getElementById('app');
+  const focusInfo = captureFocusPg();
   app.innerHTML = `
     <div class="page-shell">
       <div class="page-content">
@@ -596,6 +623,9 @@ function renderProgress() {
       ${renderModalPg()}
     </div>
   `;
+
+  restoreFocusPg(focusInfo);
+  clearNoTransitionsPg();
 
   const hoverEl = document.getElementById('weight-chart-hover');
   if (hoverEl) {

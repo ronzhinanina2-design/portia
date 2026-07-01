@@ -221,6 +221,7 @@ function toggleTag(t) {
 }
 
 function setPortion(id, p) {
+  if (p === 'custom') pendingFocus = { selector: `.custom-g-input[data-id="${id}"]` };
   setState((s) => ({ selected: { ...s.selected, [id]: { ...s.selected[id], portion: p } } }));
 }
 
@@ -587,7 +588,7 @@ function renderWaterModal() {
   }
 
   return `
-    <div class="modal-overlay" style="z-index:60;">
+    <div class="modal-overlay no-transitions" style="z-index:60;">
       <div style="position:relative; width:100%; max-width:440px; background:#1C2733; border:1px solid #2A3A4A; border-radius:22px; padding:26px 28px 24px; box-shadow:0 30px 80px rgba(0,0,0,0.55); font-family:Inter,sans-serif;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
           <span class="modal-title">Water goal</span>
@@ -833,7 +834,7 @@ function renderModal() {
         <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; margin-bottom:18px;">
           ${tagsHtml}
         </div>
-        <div style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 16px 0 6px;">
+        <div class="td-scroll-body" style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 16px 0 6px;">
           ${listHtml}
         </div>
       `}
@@ -875,7 +876,7 @@ function renderModal() {
         </div>
         <span style="font-size:13px; color:#8B9BAD;">2 / 2</span>
       </div>
-      <div style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 6px; display:flex; flex-direction:column; gap:12px;">
+      <div class="td-scroll-body" style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 6px; display:flex; flex-direction:column; gap:12px;">
         ${portionRowsHtml}
       </div>
     </div>
@@ -921,7 +922,7 @@ function renderModal() {
     : 'save-meal';
 
   return `
-    <div class="modal-overlay">
+    <div class="modal-overlay no-transitions">
       <div style="width:100%; max-width:1000px; height:660px; max-height:88vh; background:#1C2733; border:1px solid #2A3A4A; border-radius:24px; display:flex; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.55); font-family:Inter,sans-serif;">
         <div style="flex:1; min-width:0; display:flex; flex-direction:column; padding:28px 30px;">
           ${step1 ? step1Html : ''}
@@ -934,7 +935,7 @@ function renderModal() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
             </div>
           </div>
-          <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column;">
+          <div class="td-scroll-body" style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column;">
             ${sidebarEmpty ? `
               <div style="flex:1; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 10px;">
                 <span style="font-size:13px; color:#5C6B7A; line-height:1.5;">Pick items on the left to build this meal.</span>
@@ -960,6 +961,7 @@ function renderModal() {
 function render() {
   const app = document.getElementById('app');
   const focusInfo = captureFocus();
+  const scrollInfo = captureScrollTd();
 
   app.innerHTML = `
     <div class="page-shell">
@@ -980,8 +982,39 @@ function render() {
     </div>
   `;
 
+  restoreScrollTd(scrollInfo);
   restoreFocus(focusInfo);
+  clearNoTransitions();
+
+  if (pendingFocus) {
+    const el = document.querySelector(pendingFocus.selector);
+    if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {} }
+    pendingFocus = null;
+  }
 }
+
+// Modal templates render with a `no-transitions` class baked in so every full
+// re-render (triggered on every keystroke) recreates focused inputs without
+// replaying their focus-color transition as a flicker; this lifts it after
+// one paint so real transitions (hover, etc.) resume working normally.
+function clearNoTransitions() {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.querySelectorAll('.no-transitions').forEach((el) => el.classList.remove('no-transitions'));
+  }));
+}
+
+// Full-page re-renders on every keystroke destroy and recreate the scrollable
+// containers below, so their scrollTop resets to 0 unless captured here first —
+// without this, typing while scrolled down in the modal visibly jerks back to the top.
+function captureScrollTd() {
+  return Array.from(document.querySelectorAll('.td-scroll-body')).map((el) => el.scrollTop);
+}
+function restoreScrollTd(tops) {
+  const els = document.querySelectorAll('.td-scroll-body');
+  els.forEach((el, i) => { if (tops[i] != null) el.scrollTop = tops[i]; });
+}
+
+let pendingFocus = null;
 
 function captureFocus() {
   const el = document.activeElement;

@@ -275,6 +275,7 @@ function toggleTagWk(t) {
   setWkState((s) => ({ activeTags: s.activeTags.includes(t) ? s.activeTags.filter((x) => x !== t) : [...s.activeTags, t] }));
 }
 function setPortionWk(id, p) {
+  if (p === 'custom') pendingFocusWk = { selector: `.custom-g-input-wk[data-id="${id}"]` };
   setWkState((s) => ({ selected: { ...s.selected, [id]: { ...s.selected[id], portion: p } } }));
 }
 function setCustomGWk(id, v) {
@@ -658,7 +659,7 @@ function renderModalWk() {
       <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; margin-bottom:18px;">
         ${tagsHtml}
       </div>
-      <div style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 16px 0 6px;">
+      <div class="wk-scroll-body" style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 16px 0 6px;">
         ${listHtml}
       </div>
     </div>
@@ -699,7 +700,7 @@ function renderModalWk() {
         </div>
         <span style="font-size:13px; color:#8B9BAD;">2 / 2</span>
       </div>
-      <div style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 6px; display:flex; flex-direction:column; gap:12px;">
+      <div class="wk-scroll-body" style="flex:1; min-height:0; overflow-y:auto; margin:0 -6px; padding:0 6px; display:flex; flex-direction:column; gap:12px;">
         ${portionRowsHtml}
       </div>
     </div>
@@ -741,7 +742,7 @@ function renderModalWk() {
     : 'save-plan';
 
   return `
-    <div class="modal-overlay">
+    <div class="modal-overlay no-transitions">
       <div style="width:100%; max-width:1000px; height:660px; max-height:88vh; background:#1C2733; border:1px solid #2A3A4A; border-radius:24px; display:flex; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.55); font-family:Inter,sans-serif;">
         <div style="flex:1; min-width:0; display:flex; flex-direction:column; padding:28px 30px;">
           ${step1 ? step1Html : ''}
@@ -754,7 +755,7 @@ function renderModalWk() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
             </div>
           </div>
-          <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column;">
+          <div class="wk-scroll-body" style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column;">
             ${sidebarEmpty ? `
               <div style="flex:1; display:flex; align-items:center; justify-content:center; text-align:center; padding:0 10px;">
                 <span style="font-size:13px; color:#5C6B7A; line-height:1.5;">Pick items on the left to build this meal.</span>
@@ -780,6 +781,7 @@ function renderModalWk() {
 function renderWeek() {
   const app = document.getElementById('app');
   const focusInfo = captureFocusWk();
+  const scrollInfo = captureScrollWk();
 
   app.innerHTML = `
     <div class="page-shell">
@@ -792,8 +794,39 @@ function renderWeek() {
     </div>
   `;
 
+  restoreScrollWk(scrollInfo);
   restoreFocusWk(focusInfo);
+  clearNoTransitionsWk();
+
+  if (pendingFocusWk) {
+    const el = document.querySelector(pendingFocusWk.selector);
+    if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {} }
+    pendingFocusWk = null;
+  }
 }
+
+// Modal templates render with a `no-transitions` class baked in so every full
+// re-render (triggered on every keystroke) recreates focused inputs without
+// replaying their focus-color transition as a flicker; this lifts it after
+// one paint so real transitions (hover, etc.) resume working normally.
+function clearNoTransitionsWk() {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.querySelectorAll('.no-transitions').forEach((el) => el.classList.remove('no-transitions'));
+  }));
+}
+
+// Full-page re-renders on every keystroke destroy and recreate the scrollable
+// containers below, so their scrollTop resets to 0 unless captured here first —
+// without this, typing while scrolled down in the modal visibly jerks back to the top.
+function captureScrollWk() {
+  return Array.from(document.querySelectorAll('.wk-scroll-body')).map((el) => el.scrollTop);
+}
+function restoreScrollWk(tops) {
+  const els = document.querySelectorAll('.wk-scroll-body');
+  els.forEach((el, i) => { if (tops[i] != null) el.scrollTop = tops[i]; });
+}
+
+let pendingFocusWk = null;
 
 function captureFocusWk() {
   const el = document.activeElement;

@@ -355,7 +355,12 @@ function pressDoneForToday(rect) {
   Data.setDayLock(TODAY_DATE, { locked: true, overLimit, lockedAt: Date.now() });
 
   preStreakSnapshot = Data.getStreak();
-  const nextStreak = preStreakSnapshot.lastLoggedDate === yesterdayDateStr() ? preStreakSnapshot.currentStreak + 1 : 1;
+  // Going over the calorie limit breaks the streak for today, same as a day
+  // with no star in Week/Progress — logging still counts toward totalDaysTracked
+  // below, it just doesn't extend or start a streak.
+  const nextStreak = overLimit
+    ? 0
+    : (preStreakSnapshot.lastLoggedDate === yesterdayDateStr() ? preStreakSnapshot.currentStreak + 1 : 1);
   Data.updateStreak({
     currentStreak: nextStreak,
     bestStreak: Math.max(preStreakSnapshot.bestStreak, nextStreak),

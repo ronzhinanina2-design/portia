@@ -53,22 +53,33 @@ function metricData(key) {
   if (key === 'weight') {
     const all = fullWeightSeries();
     const current = all.length ? all[all.length - 1].w : null;
-    return { label: 'Weight', kind: 'measure', unit: 'kg', current, target: goals.weightTarget };
+    return { label: 'Weight', kind: 'measure', unit: 'kg', current, target: goals.weightTarget, start: goals.weightStart };
   }
   if (key === 'protein') return { label: 'Protein goal', kind: 'goal', unit: 'g', current: null, target: goals.proteinTarget };
   if (key === 'calorie') return { label: 'Calorie limit', kind: 'goal', unit: 'kcal', current: null, target: goals.calorieTarget };
-  if (key === 'waist') return { label: 'Waist', kind: 'measure', unit: 'cm', current: goals.waistCurrent, target: goals.waistTarget };
+  if (key === 'waist') {
+    const all = Data.getWaistEntries();
+    const current = all.length ? all[all.length - 1].value : null;
+    return { label: 'Waist', kind: 'measure', unit: 'cm', current, target: goals.waistTarget, start: goals.waistStart };
+  }
   if (key === 'water') return { label: 'Water', kind: 'goal', unit: 'ml', current: null, target: goals.waterTarget };
-  return { label: 'Hips', kind: 'measure', unit: 'cm', current: goals.hipsCurrent, target: goals.hipsTarget };
+  const hipsAll = Data.getHipsEntries();
+  const hipsCurrent = hipsAll.length ? hipsAll[hipsAll.length - 1].value : null;
+  return { label: 'Hips', kind: 'measure', unit: 'cm', current: hipsCurrent, target: goals.hipsTarget, start: goals.hipsStart };
+}
+function todayIsoPg() {
+  return new Date().toISOString().slice(0, 10);
 }
 function openModalPg(key) {
   const m = metricData(key);
   setPgState({
     modal: {
       key, kind: m.kind, label: m.label, unit: m.unit,
+      start: m.start != null ? String(m.start) : '',
+      startLocked: m.start != null,
       current: m.current != null ? String(m.current) : '',
       target: m.target != null ? String(m.target) : '',
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: todayIsoPg(),
       error: '', phase: 'idle',
     },
   });
@@ -82,15 +93,26 @@ function setModalField(field, v) {
 function validNumPg(v) {
   return v.trim() !== '' && /^[0-9]+(\.[0-9]+)?$/.test(v.trim()) && Number(v) > 0;
 }
+function validDatePg(v) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(v || '') && v <= todayIsoPg();
+}
 function saveModalPg() {
   const md = pgState.modal;
   if (!md || md.phase !== 'idle') return;
-  if (md.kind === 'measure' && !validNumPg(md.current)) {
-    setPgState((s) => ({ modal: { ...s.modal, error: 'Enter a valid number for the current value.' } }));
+  if (md.kind === 'measure' && !md.startLocked && !validNumPg(md.start)) {
+    setPgState((s) => ({ modal: { ...s.modal, error: 'Enter a valid starting number.' } }));
     return;
   }
   if (!validNumPg(md.target)) {
     setPgState((s) => ({ modal: { ...s.modal, error: 'Enter a valid target number.' } }));
+    return;
+  }
+  if (md.kind === 'measure' && !validNumPg(md.current)) {
+    setPgState((s) => ({ modal: { ...s.modal, error: 'Enter a valid number for the current value.' } }));
+    return;
+  }
+  if (md.kind === 'measure' && !validDatePg(md.date)) {
+    setPgState((s) => ({ modal: { ...s.modal, error: 'Enter a valid date — it can\'t be in the future.' } }));
     return;
   }
   setPgState((s) => ({ modal: { ...s.modal, phase: 'loading', error: '' } }));
@@ -105,25 +127,25 @@ function applyModalPg() {
   if (!md) return;
   const cur = md.current.trim() === '' ? null : Number(md.current);
   const tgt = Number(md.target);
+  const startVal = md.kind === 'measure' && !md.startLocked ? Number(md.start) : null;
   if (md.key === 'weight') {
-    Data.addWeightEntry({ date: new Date().toISOString().slice(0, 10), value: cur });
-    const goals = Data.getGoals();
+    Data.addWeightEntry({ date: md.date, value: cur });
     const patch = { weightTarget: tgt };
-    if (goals.weightStart == null && cur != null) patch.weightStart = cur;
+    if (startVal != null) patch.weightStart = startVal;
     Data.updateGoals(patch);
   } else if (md.key === 'protein') {
     Data.updateGoals({ proteinTarget: tgt });
   } else if (md.key === 'calorie') {
     Data.updateGoals({ calorieTarget: tgt });
   } else if (md.key === 'waist') {
-    const goals = Data.getGoals();
-    const patch = { waistTarget: tgt, waistCurrent: cur };
-    if (goals.waistStart == null && cur != null) patch.waistStart = cur;
+    Data.addWaistEntry({ date: md.date, value: cur });
+    const patch = { waistTarget: tgt };
+    if (startVal != null) patch.waistStart = startVal;
     Data.updateGoals(patch);
   } else if (md.key === 'hips') {
-    const goals = Data.getGoals();
-    const patch = { hipsTarget: tgt, hipsCurrent: cur };
-    if (goals.hipsStart == null && cur != null) patch.hipsStart = cur;
+    Data.addHipsEntry({ date: md.date, value: cur });
+    const patch = { hipsTarget: tgt };
+    if (startVal != null) patch.hipsStart = startVal;
     Data.updateGoals(patch);
   } else if (md.key === 'water') {
     Data.setWaterGoal(tgt);
@@ -363,11 +385,15 @@ function renderWeightCard() {
 
 function renderSmallCards() {
   const goals = Data.getGoals();
+  const waistEntries = Data.getWaistEntries();
+  const hipsEntries = Data.getHipsEntries();
+  const waistCurrent = waistEntries.length ? waistEntries[waistEntries.length - 1].value : null;
+  const hipsCurrent = hipsEntries.length ? hipsEntries[hipsEntries.length - 1].value : null;
   const cardsMeta = [
     { key: 'protein', label: 'Protein goal', kind: 'goal', unit: 'g', sub: 'Daily target', target: goals.proteinTarget },
     { key: 'calorie', label: 'Calorie limit', kind: 'goal', unit: 'kcal', sub: 'Daily limit', target: goals.calorieTarget },
-    { key: 'waist', label: 'Waist', kind: 'measure', unit: 'cm', start: goals.waistStart, current: goals.waistCurrent, target: goals.waistTarget },
-    { key: 'hips', label: 'Hips', kind: 'measure', unit: 'cm', start: goals.hipsStart, current: goals.hipsCurrent, target: goals.hipsTarget },
+    { key: 'waist', label: 'Waist', kind: 'measure', unit: 'cm', start: goals.waistStart, current: waistCurrent, target: goals.waistTarget },
+    { key: 'hips', label: 'Hips', kind: 'measure', unit: 'cm', start: goals.hipsStart, current: hipsCurrent, target: goals.hipsTarget },
     { key: 'water', label: 'Water', kind: 'goal', unit: 'ml', sub: 'Daily target', target: goals.waterTarget },
   ];
 
@@ -494,13 +520,26 @@ function renderModalPg() {
   const phase = md.phase;
   const busy = phase === 'loading' || phase === 'success';
   const errBorder = 'border-color: rgba(224,116,106,0.7) !important;';
+  const startInvalid = md.error && md.kind === 'measure' && !md.startLocked && !validNumPg(md.start);
   const curInvalid = md.error && md.kind === 'measure' && !validNumPg(md.current);
   const tgtInvalid = md.error && !validNumPg(md.target);
+  const dateInvalid = md.error && md.kind === 'measure' && !validDatePg(md.date);
+
+  const startFieldHtml = md.kind === 'measure' ? `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">Start ${md.label.toLowerCase()}</div>
+      <div class="field-box${md.startLocked ? ' is-disabled' : ''}" style="${startInvalid ? errBorder : ''}">
+        <input id="pg-start" value="${md.start}" placeholder="0" ${md.startLocked ? 'disabled title="Start is locked after your first save"' : ''} style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:18px; font-weight:500; color:${md.startLocked ? '#8B9BAD' : '#E8EDF2'};" />
+        ${md.startLocked ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>` : ''}
+        <span style="font-size:14px; color:#8B9BAD;">${md.unit}</span>
+      </div>
+    </div>
+  ` : '';
 
   const currentFieldHtml = md.kind === 'measure' ? `
     <div style="margin-bottom:16px;">
       <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">Current ${md.label.toLowerCase()}</div>
-      <div style="display:flex; align-items:center; gap:10px; background:#2A3A4A; border:1.5px solid #2A3A4A; border-radius:12px; padding:12px 14px; ${curInvalid ? errBorder : ''}">
+      <div class="field-box" style="${curInvalid ? errBorder : ''}">
         <input id="pg-current" value="${md.current}" placeholder="0" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:18px; font-weight:500; color:#E8EDF2;" />
         <span style="font-size:14px; color:#8B9BAD;">${md.unit}</span>
       </div>
@@ -510,9 +549,9 @@ function renderModalPg() {
   const dateFieldHtml = md.kind === 'measure' ? `
     <div style="margin-bottom:16px;">
       <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">Date logged</div>
-      <div style="display:flex; align-items:center; gap:10px; background:#2A3A4A; border:1.5px solid #2A3A4A; border-radius:12px; padding:12px 14px;">
+      <div class="field-box" style="${dateInvalid ? errBorder : ''}">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8B9BAD" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>
-        <input id="pg-date" value="${escapeAttr(md.date)}" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:15px; color:#E8EDF2;" />
+        <input type="date" id="pg-date" value="${escapeAttr(md.date)}" max="${todayIsoPg()}" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:15px; color:#E8EDF2; color-scheme: dark;" />
       </div>
     </div>
   ` : '';
@@ -542,14 +581,15 @@ function renderModalPg() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
           </div>
         </div>
-        ${currentFieldHtml}
+        ${startFieldHtml}
         <div style="margin-bottom:16px;">
           <div style="font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8B9BAD; margin-bottom:8px;">Target ${md.label.toLowerCase()}</div>
-          <div style="display:flex; align-items:center; gap:10px; background:#2A3A4A; border:1.5px solid #2A3A4A; border-radius:12px; padding:12px 14px; ${tgtInvalid ? errBorder : ''}">
+          <div class="field-box" style="${tgtInvalid ? errBorder : ''}">
             <input id="pg-target" value="${md.target}" placeholder="0" style="flex:1; min-width:0; background:transparent; border:none; outline:none; font-family:Inter,sans-serif; font-size:18px; font-weight:500; color:#E8EDF2;" />
             <span style="font-size:14px; color:#8B9BAD;">${md.unit}</span>
           </div>
         </div>
+        ${currentFieldHtml}
         ${dateFieldHtml}
         ${errorHtml}
         <div style="display:flex; gap:10px; margin-top:4px;">
@@ -565,12 +605,20 @@ function escapeAttr(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-const PG_FOCUS_IDS = ['pg-current', 'pg-target', 'pg-date'];
+const PG_FOCUS_IDS = ['pg-start', 'pg-current', 'pg-target', 'pg-date'];
 
 function captureFocusPg() {
   const el = document.activeElement;
   if (!el || !PG_FOCUS_IDS.includes(el.id)) return null;
-  return { id: el.id, selStart: el.selectionStart, selEnd: el.selectionEnd };
+  // selectionStart/selectionEnd throw on input types that don't support text
+  // selection (e.g. type="date") — pg-date only needs focus() restored, not a
+  // caret position, so fall back to nulls rather than letting this throw and
+  // break the whole re-render.
+  try {
+    return { id: el.id, selStart: el.selectionStart, selEnd: el.selectionEnd };
+  } catch (e) {
+    return { id: el.id, selStart: null, selEnd: null };
+  }
 }
 function restoreFocusPg(info) {
   if (!info) return;
@@ -656,7 +704,8 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('input', (e) => {
-  if (e.target.id === 'pg-current') setModalField('current', e.target.value);
+  if (e.target.id === 'pg-start') setModalField('start', e.target.value);
+  else if (e.target.id === 'pg-current') setModalField('current', e.target.value);
   else if (e.target.id === 'pg-target') setModalField('target', e.target.value);
   else if (e.target.id === 'pg-date') setModalField('date', e.target.value);
 });

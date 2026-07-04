@@ -295,6 +295,28 @@ input::placeholder { color: var(--fog-dark); }
   pointer-events: none;
 }
 
+/* Field wrapper for inputs paired with an icon/unit inside the same box
+   (Progress metric modal) — border lives on the wrapper, not the input, so
+   focus has to key off :focus-within instead of :focus. */
+.field-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--storm);
+  border: 1.5px solid var(--storm);
+  border-radius: 12px;
+  padding: 12px 14px;
+  transition: border-color 150ms ease;
+}
+.field-box:focus-within { border-color: var(--turquoise); }
+.field-box.is-disabled { opacity: 0.6; cursor: not-allowed; }
+.field-box.is-disabled input { cursor: not-allowed; }
+
+.field-box input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6);
+  cursor: pointer;
+}
+
 /* ============ Tag chips ============ */
 
 .chip {

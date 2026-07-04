@@ -7,6 +7,20 @@ function uid(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Keeps a dated-entry list (weight/waist/hips) sorted ascending by date so
+// "most recent" is always the last element, and overwrites same-day entries
+// instead of duplicating them so backfilling an earlier date after logging
+// today doesn't make the later date lose its "most recent" status.
+function upsertDatedEntry(list, date, value) {
+  const idx = list.findIndex((e) => e.date === date);
+  if (idx !== -1) {
+    list[idx] = { date, value };
+  } else {
+    list.push({ date, value });
+    list.sort((a, b) => a.date.localeCompare(b.date));
+  }
+}
+
 function seedData() {
   // Clean-slate seed — no demo items, recipes, logs, weight history, or streak.
   // calorieTarget/proteinTarget keep their documented app defaults; every other
@@ -16,16 +30,16 @@ function seedData() {
   const recipes = [];
   const logs = [];
   const weight = [];
+  const waist = [];
+  const hips = [];
 
   const goals = {
     calorieTarget: 1300,
     proteinTarget: 90,
     weightTarget: null,
     weightStart: null,
-    waistCurrent: null,
     waistStart: null,
     waistTarget: null,
-    hipsCurrent: null,
     hipsStart: null,
     hipsTarget: null,
     waterTarget: 2000,
@@ -44,7 +58,28 @@ function seedData() {
     lastMetDate: null,
   };
 
-  return { items, recipes, logs, weight, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak };
+  return { items, recipes, logs, weight, waist, hips, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak };
+}
+
+// Pre-dated-history saves stored waist/hips as a single goals.waistCurrent /
+// goals.hipsCurrent number. Turns that into a one-entry dated list (dated
+// today, since the original save didn't record when it happened) so older
+// data doesn't need a separate migration path once waist/hips read from
+// the entries list like weight already does.
+function migrateMeasureHistory(parsed) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  if (!parsed.waist) {
+    const legacy = parsed.goals && parsed.goals.waistCurrent;
+    parsed.waist = legacy != null ? [{ date: todayIso, value: legacy }] : [];
+  }
+  if (!parsed.hips) {
+    const legacy = parsed.goals && parsed.goals.hipsCurrent;
+    parsed.hips = legacy != null ? [{ date: todayIso, value: legacy }] : [];
+  }
+  if (parsed.goals) {
+    delete parsed.goals.waistCurrent;
+    delete parsed.goals.hipsCurrent;
+  }
 }
 
 /* ============ Supabase sync ============ */
@@ -70,6 +105,7 @@ function readLocalOrSeed() {
       if (!parsed.waterLogs) parsed.waterLogs = {};
       if (!parsed.waterStreak) parsed.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
       if (parsed.goals && parsed.goals.waterTarget == null) parsed.goals.waterTarget = 2000;
+      migrateMeasureHistory(parsed);
       return parsed;
     } catch (e) {
       // fall through to reseed
@@ -124,6 +160,7 @@ async function syncFromRemote() {
         if (!cache.waterLogs) cache.waterLogs = {};
         if (!cache.waterStreak) cache.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
         if (cache.goals && cache.goals.waterTarget == null) cache.goals.waterTarget = 2000;
+        migrateMeasureHistory(cache);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
         localStorage.setItem(LOCAL_UPDATED_KEY, String(remoteTs));
       } else {
@@ -307,7 +344,27 @@ const Data = {
   },
   addWeightEntry(entry) {
     const data = loadData();
-    data.weight.push(entry);
+    upsertDatedEntry(data.weight, entry.date, entry.value);
+    saveData(data);
+  },
+
+  // ---- waist ----
+  getWaistEntries() {
+    return loadData().waist;
+  },
+  addWaistEntry(entry) {
+    const data = loadData();
+    upsertDatedEntry(data.waist, entry.date, entry.value);
+    saveData(data);
+  },
+
+  // ---- hips ----
+  getHipsEntries() {
+    return loadData().hips;
+  },
+  addHipsEntry(entry) {
+    const data = loadData();
+    upsertDatedEntry(data.hips, entry.date, entry.value);
     saveData(data);
   },
 

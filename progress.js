@@ -410,7 +410,7 @@ function renderSmallCards() {
       goalLineText = m.sub;
     } else {
       bigVal = filled ? String(m.current) : '';
-      subText = filled ? `/ ${m.target} ${m.unit} goal` : '';
+      subText = filled ? `/ ${m.target} ${m.unit}` : '';
       if (filled && m.start != null) {
         const pct = Math.min(100, Math.max(6, ((m.start - m.current) / (m.start - m.target)) * 100));
         showBar = true;

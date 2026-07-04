@@ -537,8 +537,8 @@ function renderHero() {
           <span style="font-size:13px; color:#8B9BAD;">${proteinPct}%</span>
         </div>
         <div style="display:flex; align-items:baseline; gap:5px; margin-bottom:14px;">
-          <span style="font-size:38px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">${consumedProtein}</span>
-          <span style="font-size:18px; font-weight:500; color:#E8EDF2;">g</span>
+          <span style="font-size:30px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.02em;">${consumedProtein}</span>
+          <span style="font-size:16px; font-weight:500; color:#E8EDF2;">g</span>
           <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">/ ${GOAL_PROTEIN}g</span>
         </div>
         <div style="height:8px; background:#2A3A4A; border-radius:5px; overflow:hidden;">
@@ -555,8 +555,8 @@ function renderHero() {
           </button>
         </div>
         <div style="position:relative; z-index:1; display:flex; align-items:baseline; gap:5px; margin-bottom:14px;">
-          <span style="font-size:38px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.03em;">${fmt(waterMl)}</span>
-          <span style="font-size:18px; font-weight:500; color:#E8EDF2;">ml</span>
+          <span style="font-size:30px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.02em;">${fmt(waterMl)}</span>
+          <span style="font-size:16px; font-weight:500; color:#E8EDF2;">ml</span>
           <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">/ ${fmt(GOAL_WATER)}ml</span>
         </div>
         <div style="position:relative; z-index:1; height:8px; background:#2A3A4A; border-radius:5px; overflow:hidden;">

@@ -431,7 +431,7 @@ function renderSmallCards() {
         ${filled ? `
           <div style="margin-top:auto;">
             <div style="display:flex; align-items:baseline; gap:7px; margin-bottom:6px;">
-              <span style="font-size:34px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.025em;">${bigVal}</span>
+              <span style="font-size:28px; font-weight:600; line-height:0.9; color:#E8EDF2; letter-spacing:-0.02em;">${bigVal}</span>
               <span style="font-size:16px; font-weight:500; color:#E8EDF2;">${m.unit}</span>
               <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">${subText}</span>
             </div>

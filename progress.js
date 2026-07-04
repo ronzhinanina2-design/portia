@@ -435,9 +435,13 @@ function renderSmallCards() {
               <span style="font-size:16px; font-weight:500; color:#E8EDF2;">${m.unit}</span>
               <span style="font-size:13px; color:#8B9BAD; margin-left:2px;">${subText}</span>
             </div>
-            ${showBar ? `<div style="height:6px; background:#2A3A4A; border-radius:4px; overflow:hidden;"><div style="${barStyle}"></div></div>` : ''}
+            ${showBar ? `
+              <div style="height:18px; display:flex; align-items:center;">
+                <div style="width:100%; height:6px; background:#2A3A4A; border-radius:4px; overflow:hidden;"><div style="${barStyle}"></div></div>
+              </div>
+            ` : ''}
             ${showGoalLine ? `
-              <div style="display:flex; align-items:center; gap:7px;">
+              <div style="height:18px; display:flex; align-items:center; gap:7px;">
                 <div style="width:7px; height:7px; border-radius:50%; background:#2ABFAD;"></div>
                 <span style="font-size:12px; color:#8B9BAD;">${goalLineText}</span>
               </div>

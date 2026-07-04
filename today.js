@@ -341,6 +341,7 @@ function scheduleUndoTimeout() {
 }
 
 let preStreakSnapshot = null;
+let preProteinStreakSnapshot = null;
 
 function yesterdayDateStr() {
   const d = new Date();
@@ -350,8 +351,8 @@ function yesterdayDateStr() {
 
 function pressDoneForToday(rect) {
   if (isDayLocked()) return;
-  const consumedKcal = dailyTotals().kcal;
-  const overLimit = consumedKcal > GOAL_KCAL;
+  const totals = dailyTotals();
+  const overLimit = totals.kcal > GOAL_KCAL;
   Data.setDayLock(TODAY_DATE, { locked: true, overLimit, lockedAt: Date.now() });
 
   preStreakSnapshot = Data.getStreak();
@@ -368,6 +369,19 @@ function pressDoneForToday(rect) {
     totalDaysTracked: preStreakSnapshot.totalDaysTracked + 1,
   });
 
+  // Same day-close pattern as the calorie streak above, tracked separately
+  // for the Protein Pro milestone (7 consecutive days hitting the protein goal).
+  preProteinStreakSnapshot = Data.getProteinStreak();
+  const proteinMet = totals.protein >= GOAL_PROTEIN;
+  const nextProteinStreak = proteinMet
+    ? (preProteinStreakSnapshot.lastMetDate === yesterdayDateStr() ? preProteinStreakSnapshot.currentStreak + 1 : 1)
+    : 0;
+  Data.updateProteinStreak({
+    currentStreak: nextProteinStreak,
+    bestStreak: Math.max(preProteinStreakSnapshot.bestStreak, nextProteinStreak),
+    lastMetDate: proteinMet ? TODAY_DATE : preProteinStreakSnapshot.lastMetDate,
+  });
+
   setState({ showUndo: true });
   if (overLimit) spawnRipple(rect); else spawnStars(rect);
   scheduleUndoTimeout();
@@ -379,6 +393,10 @@ function undoDoneForToday() {
   if (preStreakSnapshot) {
     Data.updateStreak(preStreakSnapshot);
     preStreakSnapshot = null;
+  }
+  if (preProteinStreakSnapshot) {
+    Data.updateProteinStreak(preProteinStreakSnapshot);
+    preProteinStreakSnapshot = null;
   }
   setState({ showUndo: false });
 }

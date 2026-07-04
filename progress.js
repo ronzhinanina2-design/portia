@@ -155,16 +155,23 @@ function applyModalPg() {
 
 /* ============ Badges ============ */
 
+function fmtBadgeDate(iso) {
+  if (!iso) return '';
+  return new Date(`${iso}T00:00:00`).toLocaleString('en-US', { month: 'short', day: 'numeric' });
+}
 function badgeData() {
   const streak = Data.getStreak();
+  const waterStreak = Data.getWaterStreak();
+  const proteinStreak = Data.getProteinStreak();
   return [
-    { id: 's7', type: 'streak', icon: 'star', label: '7-day streak', unlocked: streak.currentStreak >= 7, date: 'Jun 25', isNew: true },
-    { id: 's30', type: 'streak', icon: 'star', label: '30-day streak', unlocked: streak.currentStreak >= 30 },
-    { id: 's90', type: 'streak', icon: 'star', label: '90-day streak', unlocked: streak.currentStreak >= 90 },
+    { id: 's7', type: 'streak', icon: 'star', label: '7-day streak', unlocked: streak.currentStreak >= 7, date: 'Jun 25', isNew: true, hint: 'Log meals 7 days in a row' },
+    { id: 's30', type: 'streak', icon: 'star', label: '30-day streak', unlocked: streak.currentStreak >= 30, hint: 'Log meals 30 days in a row' },
+    { id: 's90', type: 'streak', icon: 'star', label: '90-day streak', unlocked: streak.currentStreak >= 90, hint: 'Log meals 90 days in a row' },
     { id: 'fl', type: 'logging', icon: 'check', label: 'First log', unlocked: streak.totalDaysTracked >= 1, date: 'May 17' },
-    { id: 'fw', type: 'logging', icon: 'cal', label: 'First week', unlocked: streak.totalDaysTracked >= 7, date: 'May 24' },
-    { id: 'fm', type: 'logging', icon: 'cal', label: 'First month', unlocked: streak.totalDaysTracked >= 30, date: 'Jun 16' },
-    { id: 'hs', type: 'logging', icon: 'glass', label: 'Hydration Station', unlocked: Data.getWaterStreak().currentStreak >= 7 },
+    { id: 'fw', type: 'logging', icon: 'cal', label: 'First week', unlocked: streak.totalDaysTracked >= 7, date: 'May 24', hint: 'Log meals on 7 different days' },
+    { id: 'fm', type: 'logging', icon: 'cal', label: 'First month', unlocked: streak.totalDaysTracked >= 30, date: 'Jun 16', hint: 'Log meals on 30 different days' },
+    { id: 'hs', type: 'logging', icon: 'glass', label: 'Hydration Station', unlocked: waterStreak.currentStreak >= 7, date: fmtBadgeDate(waterStreak.lastMetDate), hint: 'Log water 7 days in a row' },
+    { id: 'pp', type: 'logging', icon: 'drumstick', label: 'Protein Pro', unlocked: proteinStreak.currentStreak >= 7, date: fmtBadgeDate(proteinStreak.lastMetDate), hint: 'Hit protein goal 7 days in a row' },
   ];
 }
 function buildBadges() {
@@ -203,11 +210,13 @@ function buildBadges() {
     if (b.isNew && b.unlocked) tileStyle += ' animation:newpulse 2.4s ease-in-out infinite;';
 
     const subText = b.unlocked ? `Unlocked ${b.date}` : 'Locked';
+    const hintHtml = (!b.unlocked && b.hint) ? `<div style="font-size:10.5px; color:#8B9BAD; opacity:0.75; margin-top:2px; line-height:1.3;">${b.hint}</div>` : '';
 
     let iconSvg;
     if (b.icon === 'star') iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="${iconFill}" stroke="${iconStroke}" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l2.6 6.1 6.4.5-4.9 4.2 1.5 6.4L12 16.9 6.9 20.7l1.5-6.4L3.5 9.6l6.4-.5z"></path></svg>`;
     else if (b.icon === 'check') iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>`;
     else if (b.icon === 'glass') iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.116 4.104A1 1 0 0 1 6.11 3h11.78a1 1 0 0 1 .994 1.104l-1.626 16.256a1 1 0 0 1-.995.901H7.737a1 1 0 0 1-.995-.901z"></path><path d="M6 12a5 5 0 0 1 6 0 5 5 0 0 0 6 0"></path></svg>`;
+    else if (b.icon === 'drumstick') iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.3" cy="9.3" r="5.3"></circle><line x1="12.8" y1="12.8" x2="17.5" y2="17.5"></line><circle cx="18.3" cy="18.3" r="2.1"></circle></svg>`;
     else iconSvg = `<svg width="${iconSize}" height="${iconSize}" viewBox="0 0 24 24" fill="none" stroke="${iconStroke}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"></rect><path d="M3 9.5h18M8 2.5v4M16 2.5v4"></path></svg>`;
 
     const lockSvg = !b.unlocked ? `
@@ -223,6 +232,7 @@ function buildBadges() {
         <div style="${iconWrap}">${iconSvg}${lockSvg}</div>
         <div style="${labelStyle}">${b.label}</div>
         <div style="${subStyle}">${subText}</div>
+        ${hintHtml}
       </div>
     `;
   }).join('');

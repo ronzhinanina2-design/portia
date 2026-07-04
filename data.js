@@ -58,7 +58,13 @@ function seedData() {
     lastMetDate: null,
   };
 
-  return { items, recipes, logs, weight, waist, hips, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak };
+  const proteinStreak = {
+    currentStreak: 0,
+    bestStreak: 0,
+    lastMetDate: null,
+  };
+
+  return { items, recipes, logs, weight, waist, hips, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak, proteinStreak };
 }
 
 // Pre-dated-history saves stored waist/hips as a single goals.waistCurrent /
@@ -104,6 +110,7 @@ function readLocalOrSeed() {
       if (!parsed.dayLocks) parsed.dayLocks = {};
       if (!parsed.waterLogs) parsed.waterLogs = {};
       if (!parsed.waterStreak) parsed.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
+      if (!parsed.proteinStreak) parsed.proteinStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
       if (parsed.goals && parsed.goals.waterTarget == null) parsed.goals.waterTarget = 2000;
       migrateMeasureHistory(parsed);
       return parsed;
@@ -159,6 +166,7 @@ async function syncFromRemote() {
         if (!cache.dayLocks) cache.dayLocks = {};
         if (!cache.waterLogs) cache.waterLogs = {};
         if (!cache.waterStreak) cache.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
+        if (!cache.proteinStreak) cache.proteinStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
         if (cache.goals && cache.goals.waterTarget == null) cache.goals.waterTarget = 2000;
         migrateMeasureHistory(cache);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
@@ -388,6 +396,17 @@ const Data = {
     data.streak = { ...data.streak, ...patch };
     saveData(data);
     return data.streak;
+  },
+
+  // ---- protein streak (consecutive days the protein goal was hit) ----
+  getProteinStreak() {
+    return loadData().proteinStreak;
+  },
+  updateProteinStreak(patch) {
+    const data = loadData();
+    data.proteinStreak = { ...data.proteinStreak, ...patch };
+    saveData(data);
+    return data.proteinStreak;
   },
 
   // ---- water ----

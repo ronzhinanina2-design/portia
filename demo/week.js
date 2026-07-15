@@ -10,19 +10,20 @@ const SLOT_META_WK = [
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const WD_HEADS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-// combos of item ids used by "Randomize meals" to fill empty future slots
-const RANDOMIZE_POOL = [
-  ['yogurt', 'berries'],
-  ['chicken', 'brownrice'],
-  ['salmon', 'sweetpotato'],
-  ['eggs', 'avocado'],
-  ['quinoa', 'chicken'],
-  ['cottage', 'banana'],
-  ['almonds', 'berries'],
-  ['sweetpotato', 'eggs'],
-  ['yogurt', 'banana'],
-  ['salmon', 'brownrice'],
-];
+// Picks 1-2 random items from the user's actual library to fill an empty
+// slot — built fresh from Data.getItems() each time rather than a fixed pool,
+// since item ids aren't predictable (they're either uid()-generated in the
+// real app or slug-based in the demo seed).
+function randomComboWk() {
+  const items = Data.getItems();
+  if (!items.length) return [];
+  const count = Math.random() < 0.5 ? 1 : 2;
+  const combo = [];
+  for (let i = 0; i < count; i++) {
+    combo.push(items[Math.floor(Math.random() * items.length)].id);
+  }
+  return combo;
+}
 
 function fmtWk(n) {
   return n.toLocaleString('en-US');
@@ -211,7 +212,8 @@ function randomize() {
     SLOT_META_WK.forEach(([sk]) => {
       const existing = Data.getLogForSlot(k, sk);
       if (existing) return;
-      const combo = RANDOMIZE_POOL[Math.floor(Math.random() * RANDOMIZE_POOL.length)];
+      const combo = randomComboWk();
+      if (!combo.length) return;
       const entries = combo.map((id) => {
         const it = itemByIdWk(id);
         return { itemId: id, portion: 'whole', grams: it.wholeG || 100, kcal: wholePortionKcalWk(it), protein: wholePortionProteinWk(it) };

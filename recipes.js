@@ -1,7 +1,5 @@
 /* ============ Portia — Recipes tab ============ */
 
-let ALL_TAGS_RC = ['High protein', 'Vegetarian', 'Grains', 'Fruit', 'Dairy', 'Snack', 'Meat', 'Fish', 'Healthy fats'];
-
 const rcState = {
   tab: 'items',
   search: '',
@@ -9,6 +7,8 @@ const rcState = {
   activeTag: 'All',
   panel: null, // { mode: 'detail'|'form', type: 'item'|'recipe', id, draft }
   confirmDelete: null, // { type, id, name }
+  tagSettingsOpen: false,
+  tagModal: null, // { newTagName, renamingId, renameValue, mergingId, mergeTargetId, mergeKeepId }
 };
 
 function setRcState(patch) {
@@ -72,22 +72,22 @@ function closePanelRc() {
 }
 
 function blankItemDraft() {
-  return { name: '', kcal: '', protein: '', fat: '', carbs: '', tags: [], addingTag: false, newTag: '', imageUrl: null };
+  return { name: '', kcal: '', protein: '', fat: '', carbs: '', tagIds: [], addingTag: false, newTag: '', imageUrl: null };
 }
 function blankRecipeDraft() {
-  return { name: '', ingredients: [], tags: [], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: null, notes: '', notesEditing: false, notesDraft: '' };
+  return { name: '', ingredients: [], tagIds: [], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: null, notes: '', notesEditing: false, notesDraft: '' };
 }
 function openForm(type, id) {
   let draft;
   if (type === 'item') {
     if (id) {
       const it = itemByIdRc(id);
-      draft = { name: it.name, kcal: String(it.kcal), protein: String(it.protein), fat: String(it.fat), carbs: String(it.carbs), tags: [...it.tags], addingTag: false, newTag: '', imageUrl: it.imageUrl || null };
+      draft = { name: it.name, kcal: String(it.kcal), protein: String(it.protein), fat: String(it.fat), carbs: String(it.carbs), tagIds: [...(it.tagIds || [])], addingTag: false, newTag: '', imageUrl: it.imageUrl || null };
     } else draft = blankItemDraft();
   } else {
     if (id) {
       const r = recipeByIdRc(id);
-      draft = { name: r.name, ingredients: r.ingredients.map((i) => ({ ...i })), tags: [...r.tags], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: r.imageUrl || null, notes: r.notes || '', notesEditing: false, notesDraft: '' };
+      draft = { name: r.name, ingredients: r.ingredients.map((i) => ({ ...i })), tagIds: [...(r.tagIds || [])], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: r.imageUrl || null, notes: r.notes || '', notesEditing: false, notesDraft: '' };
     } else draft = blankRecipeDraft();
   }
   setRcState({ panel: { mode: 'form', type, id, draft } });
@@ -95,24 +95,24 @@ function openForm(type, id) {
 function patchDraft(patch) {
   setRcState((s) => ({ panel: { ...s.panel, draft: { ...s.panel.draft, ...patch } } }));
 }
-function toggleDraftTag(t) {
+function toggleDraftTag(tagId) {
   setRcState((s) => {
     const d = s.panel.draft;
-    const tags = d.tags.includes(t) ? d.tags.filter((x) => x !== t) : [...d.tags, t];
-    return { panel: { ...s.panel, draft: { ...d, tags } } };
+    const tagIds = d.tagIds.includes(tagId) ? d.tagIds.filter((x) => x !== tagId) : [...d.tagIds, tagId];
+    return { panel: { ...s.panel, draft: { ...d, tagIds } } };
   });
 }
 function commitNewTag() {
   const s = rcState;
   const d = s.panel.draft;
-  const t = d.newTag.trim();
-  if (!t) {
+  const name = d.newTag.trim();
+  if (!name) {
     patchDraft({ addingTag: false, newTag: '' });
     return;
   }
-  const tags = d.tags.includes(t) ? d.tags : [...d.tags, t];
-  if (!ALL_TAGS_RC.includes(t)) ALL_TAGS_RC.push(t);
-  patchDraft({ tags, addingTag: false, newTag: '' });
+  const tag = Data.addTag(name);
+  const tagIds = d.tagIds.includes(tag.id) ? d.tagIds : [...d.tagIds, tag.id];
+  patchDraft({ tagIds, addingTag: false, newTag: '' });
 }
 
 function addIngredient(id) {
@@ -163,7 +163,7 @@ function doReplace(idx, newId) {
 function saveItem() {
   const s = rcState;
   const d = s.panel.draft, id = s.panel.id;
-  const rec = { name: d.name.trim() || 'Untitled item', kcal: Number(d.kcal) || 0, protein: Number(d.protein) || 0, fat: Number(d.fat) || 0, carbs: Number(d.carbs) || 0, tags: [...d.tags], imageUrl: d.imageUrl || null };
+  const rec = { name: d.name.trim() || 'Untitled item', kcal: Number(d.kcal) || 0, protein: Number(d.protein) || 0, fat: Number(d.fat) || 0, carbs: Number(d.carbs) || 0, tagIds: [...d.tagIds], imageUrl: d.imageUrl || null };
   if (id) Data.updateItem(id, rec);
   else Data.addItem(rec);
   setRcState({ panel: null });
@@ -172,7 +172,7 @@ function saveRecipe() {
   const s = rcState;
   const d = s.panel.draft, id = s.panel.id;
   const ingredients = d.ingredients.map((ing) => ({ itemId: ing.itemId, grams: Number(ing.grams) || 0 }));
-  const rec = { name: d.name.trim() || 'Untitled recipe', ingredients, tags: [...d.tags], imageUrl: d.imageUrl || null, notes: d.notes || '' };
+  const rec = { name: d.name.trim() || 'Untitled recipe', ingredients, tagIds: [...d.tagIds], imageUrl: d.imageUrl || null, notes: d.notes || '' };
   if (id) Data.updateRecipe(id, rec);
   else Data.addRecipe(rec);
   setRcState({ panel: null });
@@ -267,8 +267,67 @@ function doDelete() {
   const c = rcState.confirmDelete;
   if (!c) { setRcState({ confirmDelete: null }); return; }
   if (c.type === 'item') Data.deleteItem(c.id);
-  else Data.deleteRecipe(c.id);
+  else if (c.type === 'recipe') Data.deleteRecipe(c.id);
+  else { Data.deleteTag(c.id); setRcState({ confirmDelete: null }); return; }
   setRcState({ confirmDelete: null, panel: null });
+}
+
+/* ============ Tag settings modal ============ */
+
+function blankTagModal() {
+  return { newTagName: '', renamingId: null, renameValue: '', mergingId: null, mergeTargetId: '', mergeKeepId: null };
+}
+function openTagSettings() {
+  setRcState({ tagSettingsOpen: true, tagModal: blankTagModal() });
+}
+function closeTagSettings() {
+  setRcState({ tagSettingsOpen: false, tagModal: null });
+}
+function patchTagModal(patch) {
+  setRcState((s) => ({ tagModal: { ...s.tagModal, ...patch } }));
+}
+function addNewTagSettings() {
+  const name = rcState.tagModal.newTagName.trim();
+  if (!name) return;
+  Data.addTag(name);
+  patchTagModal({ newTagName: '' });
+}
+function startRenameTag(id) {
+  const t = Data.getTagById(id);
+  patchTagModal({ renamingId: id, renameValue: t ? t.name : '', mergingId: null, mergeTargetId: '', mergeKeepId: null });
+}
+function cancelRenameTag() {
+  patchTagModal({ renamingId: null, renameValue: '' });
+}
+function commitRenameTag() {
+  const tm = rcState.tagModal;
+  const val = tm.renameValue.trim();
+  if (tm.renamingId && val) Data.renameTag(tm.renamingId, val);
+  patchTagModal({ renamingId: null, renameValue: '' });
+}
+function startMergeTag(id) {
+  patchTagModal({ mergingId: id, mergeTargetId: '', mergeKeepId: id, renamingId: null, renameValue: '' });
+}
+function cancelMergeTag() {
+  patchTagModal({ mergingId: null, mergeTargetId: '', mergeKeepId: null });
+}
+function setMergeTarget(targetId) {
+  patchTagModal({ mergeTargetId: targetId, mergeKeepId: rcState.tagModal.mergingId });
+}
+function setMergeKeep(id) {
+  patchTagModal({ mergeKeepId: id });
+}
+function confirmMergeTag() {
+  const tm = rcState.tagModal;
+  if (!tm.mergingId || !tm.mergeTargetId) return;
+  const keepId = tm.mergeKeepId || tm.mergingId;
+  const loserId = keepId === tm.mergingId ? tm.mergeTargetId : tm.mergingId;
+  const winnerTag = Data.getTagById(keepId);
+  Data.mergeTags(loserId, keepId, winnerTag ? winnerTag.name : undefined);
+  patchTagModal({ mergingId: null, mergeTargetId: '', mergeKeepId: null });
+}
+function askDeleteTag(id, name) {
+  setRcState({ confirmDelete: { type: 'tag', id, name } });
 }
 
 /* ============ Rendering ============ */
@@ -343,20 +402,28 @@ function renderTopBar(isItems) {
   `;
 }
 
+function tagNamesRc(ids) {
+  return (ids || []).map((id) => Data.getTagById(id)).filter(Boolean).map((t) => t.name);
+}
+
 function renderGridAndEmpty(isItems) {
   const s = rcState;
   const base = isItems ? Data.getItems() : Data.getRecipes();
 
-  const tagSet = new Set();
-  base.forEach((x) => x.tags.forEach((t) => tagSet.add(t)));
-  const chipLabels = ['All', ...ALL_TAGS_RC.filter((t) => tagSet.has(t))];
-  const chipsHtml = chipLabels.map((t) => {
-    const active = s.activeTag === t;
-    return `<div class="chip${active ? ' active' : ''}" data-action="set-tag" data-tag="${escapeHtmlRc(t)}" style="flex-shrink:0;">${escapeHtmlRc(t)}</div>`;
+  const cogHtml = `
+    <div data-action="open-tag-settings" class="icon-btn" title="Manage tags" style="width:34px; height:34px; flex-shrink:0; background:#1C2733; border:1px solid #2A3A4A; border-radius:10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </div>
+  `;
+  const allChipHtml = `<div class="chip${s.activeTag === 'All' ? ' active' : ''}" data-action="set-tag" data-tag="All" style="flex-shrink:0;">All</div>`;
+  const topTags = Data.getTopTags(isItems ? 'items' : 'recipes', 8);
+  const chipsHtml = topTags.map((t) => {
+    const active = s.activeTag === t.id;
+    return `<div class="chip${active ? ' active' : ''}" data-action="set-tag" data-tag="${t.id}" style="flex-shrink:0;">${escapeHtmlRc(t.name)}</div>`;
   }).join('');
 
   const q = s.search.trim().toLowerCase();
-  let filtered = base.filter((x) => (!q || x.name.toLowerCase().includes(q)) && (s.activeTag === 'All' || x.tags.includes(s.activeTag)));
+  let filtered = base.filter((x) => (!q || x.name.toLowerCase().includes(q)) && (s.activeTag === 'All' || (x.tagIds || []).includes(s.activeTag)));
   filtered = sortList(filtered);
 
   const cardsHtml = filtered.map((x) => {
@@ -368,10 +435,11 @@ function renderGridAndEmpty(isItems) {
       broken = m.broken;
       macroText = broken ? 'Missing ingredient' : `${m.kcal} kcal · ${m.protein}g protein`;
     }
+    const xTagNames = tagNamesRc(x.tagIds);
     const tagChipStyle = 'font-size:11px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:3px 9px; border-radius:6px; white-space:nowrap; flex-shrink:0;';
     const tagChipsHtml = `
-      <div class="rc-tags-row" data-total="${x.tags.length}" style="display:flex; flex-wrap:nowrap; overflow:hidden; gap:6px; width:100%;">
-        ${x.tags.map((t) => `<span class="rc-tag-chip" style="${tagChipStyle}">${escapeHtmlRc(t)}</span>`).join('')}
+      <div class="rc-tags-row" data-total="${xTagNames.length}" style="display:flex; flex-wrap:nowrap; overflow:hidden; gap:6px; width:100%;">
+        ${xTagNames.map((t) => `<span class="rc-tag-chip" style="${tagChipStyle}">${escapeHtmlRc(t)}</span>`).join('')}
         <span class="rc-tags-more" style="${tagChipStyle} display:none;"></span>
       </div>
     `;
@@ -490,7 +558,7 @@ function renderGridAndEmpty(isItems) {
   }
 
   return `
-    <div class="rc-chiprow" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; margin-bottom:22px;">${chipsHtml}</div>
+    <div class="rc-chiprow" style="display:flex; align-items:center; gap:8px; overflow-x:auto; padding-bottom:2px; margin-bottom:22px;">${cogHtml}${allChipHtml}${chipsHtml}</div>
     ${bodyHtml}
   `;
 }
@@ -499,7 +567,7 @@ function renderDetailPanel(panel) {
   if (panel.type === 'item') {
     const it = itemByIdRc(panel.id);
     if (!it) return '';
-    const tagsHtml = it.tags.map((t) => `<span style="font-size:12px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:5px 11px; border-radius:7px;">${escapeHtmlRc(t)}</span>`).join('');
+    const tagsHtml = tagNamesRc(it.tagIds).map((t) => `<span style="font-size:12px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:5px 11px; border-radius:7px;">${escapeHtmlRc(t)}</span>`).join('');
     const rows = [
       ['Calories', `${fmtRc(it.kcal)} kcal`],
       ['Protein', `${roundRc(it.protein)} g`],
@@ -545,7 +613,7 @@ function renderDetailPanel(panel) {
   const r = recipeByIdRc(panel.id);
   if (!r) return '';
   const m = recipeMacros(r);
-  const tagsHtml = r.tags.map((t) => `<span style="font-size:12px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:5px 11px; border-radius:7px;">${escapeHtmlRc(t)}</span>`).join('');
+  const tagsHtml = tagNamesRc(r.tagIds).map((t) => `<span style="font-size:12px; font-weight:500; color:#8B9BAD; background:#2A3A4A; padding:5px 11px; border-radius:7px;">${escapeHtmlRc(t)}</span>`).join('');
   const ingRowsHtml = r.ingredients.map((ing) => {
     const it = itemByIdRc(ing.itemId);
     if (!it) {
@@ -620,12 +688,12 @@ function renderDetailPanel(panel) {
 
 function renderTagChipsEditor(draft) {
   const tagChip = 'display:inline-flex; align-items:center; padding:7px 13px; border-radius:9px; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap; transition:background 150ms ease, border-color 150ms ease, color 150ms ease;';
-  const chipsHtml = ALL_TAGS_RC.map((t) => {
-    const active = draft.tags.includes(t);
+  const chipsHtml = Data.getTags().map((t) => {
+    const active = draft.tagIds.includes(t.id);
     const style = active
       ? tagChip + ' background:#2A3A4A; border:1.5px solid #2ABFAD; color:#2ABFAD;'
       : tagChip + ' background:#2A3A4A; border:1.5px solid #2A3A4A; color:#8B9BAD;';
-    return `<div data-action="toggle-draft-tag" data-tag="${escapeHtmlRc(t)}" style="${style}">${escapeHtmlRc(t)}</div>`;
+    return `<div data-action="toggle-draft-tag" data-tag="${t.id}" style="${style}">${escapeHtmlRc(t.name)}</div>`;
   }).join('');
 
   const addingTagHtml = draft.addingTag
@@ -848,7 +916,9 @@ function renderConfirmDelete() {
   if (!c) return '';
   const body = c.type === 'item'
     ? 'This will remove it from your library. Any recipes using this item will be marked as broken.'
-    : 'This will remove the recipe from your library.';
+    : c.type === 'recipe'
+    ? 'This will remove the recipe from your library.'
+    : 'This will remove the tag from every item and recipe that uses it.';
   return `
     <div class="modal-overlay" style="z-index:80;" data-action="cancel-delete">
       <div style="width:100%; max-width:420px; background:#1C2733; border:1px solid #2A3A4A; border-radius:18px; padding:26px; box-shadow:0 30px 80px rgba(0,0,0,0.55);" data-stop="1">
@@ -857,6 +927,99 @@ function renderConfirmDelete() {
         <div style="display:flex; gap:10px;">
           <button data-action="cancel-delete" class="btn-ghost" style="flex:1;">Cancel</button>
           <button data-action="confirm-delete" class="btn-confirm-delete" style="flex:1;">Delete</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTagSettingsModal() {
+  if (!rcState.tagSettingsOpen) return '';
+  const tm = rcState.tagModal;
+  const counts = Data.getTagUsageCounts();
+  const tags = [...Data.getTags()].sort((a, b) => (counts.get(b.id) || 0) - (counts.get(a.id) || 0));
+
+  const rowsHtml = tags.map((t) => {
+    const count = counts.get(t.id) || 0;
+
+    if (tm.renamingId === t.id) {
+      return `
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 4px;">
+          <input id="rc-tag-rename" class="input-card" value="${escapeHtmlRc(tm.renameValue)}" style="flex:1; padding:9px 12px; font-size:14px;" />
+          <div data-action="commit-rename-tag" class="icon-btn" title="Save" style="width:30px; height:30px; color:#2ABFAD;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+          </div>
+          <div data-action="cancel-rename-tag" class="icon-btn" title="Cancel" style="width:30px; height:30px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+          </div>
+        </div>
+      `;
+    }
+
+    if (tm.mergingId === t.id) {
+      const others = tags.filter((o) => o.id !== t.id);
+      const targetTag = others.find((o) => o.id === tm.mergeTargetId) || null;
+      const optionsHtml = others.map((o) => `<option value="${o.id}" ${tm.mergeTargetId === o.id ? 'selected' : ''}>${escapeHtmlRc(o.name)}</option>`).join('');
+      const keepBtn = (id, label) => {
+        const on = tm.mergeKeepId === id;
+        return `<div data-action="set-merge-keep" data-id="${id}" style="flex:1; text-align:center; padding:8px; border-radius:8px; font-size:13px; cursor:pointer; border:1.5px solid ${on ? '#2ABFAD' : '#34465A'}; color:${on ? '#2ABFAD' : '#8B9BAD'}; transition:border-color 150ms ease, color 150ms ease;">Keep "${escapeHtmlRc(label)}"</div>`;
+      };
+      const keepHtml = targetTag ? `<div style="display:flex; gap:8px; margin-top:10px;">${keepBtn(t.id, t.name)}${keepBtn(targetTag.id, targetTag.name)}</div>` : '';
+      return `
+        <div style="padding:12px; background:#1A2430; border-radius:10px; margin:4px 0;">
+          <div style="font-size:13px; color:#8B9BAD; margin-bottom:8px;">Merge "${escapeHtmlRc(t.name)}" into…</div>
+          <select id="rc-tag-merge-target" class="input-card" style="width:100%; padding:9px 12px; font-size:14px;">
+            <option value="" ${!tm.mergeTargetId ? 'selected' : ''} disabled>Choose a tag…</option>
+            ${optionsHtml}
+          </select>
+          ${keepHtml}
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button data-action="cancel-merge-tag" class="btn-ghost" style="flex:1; padding:9px; font-size:13px;">Cancel</button>
+            <button data-action="confirm-merge-tag" class="btn-primary" style="flex:1; padding:9px; font-size:13px;" ${targetTag ? '' : 'disabled'}>Merge</button>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 4px; border-bottom:1px solid rgba(42,58,74,0.5);">
+        <div style="min-width:0;">
+          <div style="font-size:14px; font-weight:500; color:#E8EDF2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtmlRc(t.name)}</div>
+          <div style="font-size:12px; color:#8B9BAD; margin-top:2px;">used ${count}x</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
+          <div data-action="start-rename-tag" data-id="${t.id}" class="icon-btn" title="Rename" style="width:30px; height:30px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+          </div>
+          <div data-action="start-merge-tag" data-id="${t.id}" class="icon-btn" title="Merge" style="width:30px; height:30px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v4a1 1 0 0 1-1 1H3M21 8h-4a1 1 0 0 1-1-1V3M3 16h4a1 1 0 0 1 1 1v4M16 21v-4a1 1 0 0 1 1-1h4"></path></svg>
+          </div>
+          <div data-action="ask-delete-tag" data-id="${t.id}" data-name="${escapeHtmlRc(t.name)}" class="icon-btn" title="Delete" style="width:30px; height:30px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"></path></svg>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const emptyHtml = tags.length === 0 ? `<div style="padding:36px 20px; text-align:center; color:#8B9BAD; font-size:14px;">No tags yet. Add one below.</div>` : '';
+
+  return `
+    <div class="modal-overlay no-transitions" style="z-index:70;" data-action="close-tag-settings">
+      <div style="width:100%; max-width:440px; max-height:80vh; background:#1C2733; border:1px solid #2A3A4A; border-radius:18px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.55);" data-stop="1">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:20px 22px 14px; border-bottom:1px solid #2A3A4A;">
+          <span class="modal-title" style="font-size:18px;">Manage tags</span>
+          <div data-action="close-tag-settings" class="icon-btn" style="width:32px; height:32px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:8px 22px 0;">
+          ${emptyHtml}
+          ${rowsHtml}
+        </div>
+        <div style="display:flex; gap:8px; padding:16px 22px 20px; border-top:1px solid #2A3A4A;">
+          <input id="rc-new-tag-name" class="input" value="${escapeHtmlRc(tm.newTagName)}" placeholder="New tag name" style="flex:1; padding:11px 14px;" />
+          <button data-action="add-new-tag-settings" class="btn-primary" style="padding:11px 20px; width:auto;" ${tm.newTagName.trim() ? '' : 'disabled'}>Add</button>
         </div>
       </div>
     </div>
@@ -877,6 +1040,7 @@ function renderRecipes() {
         ${renderGridAndEmpty(isItems)}
       </div>
       ${renderPanelOverlay()}
+      ${renderTagSettingsModal()}
       ${renderConfirmDelete()}
       <input type="file" id="rc-photo-input" accept="image/*" style="display:none;" />
     </div>
@@ -957,7 +1121,7 @@ window.addEventListener('resize', () => {
   tagOverflowResizeRaf = requestAnimationFrame(adjustTagOverflow);
 });
 
-const RC_FOCUS_IDS = ['rc-search', 'rc-f-name', 'rc-f-kcal', 'rc-f-protein', 'rc-f-fat', 'rc-f-carbs', 'rc-ing-search', 'rc-new-tag', 'rc-f-notes'];
+const RC_FOCUS_IDS = ['rc-search', 'rc-f-name', 'rc-f-kcal', 'rc-f-protein', 'rc-f-fat', 'rc-f-carbs', 'rc-ing-search', 'rc-new-tag', 'rc-f-notes', 'rc-tag-rename', 'rc-new-tag-name'];
 function captureFocusRc() {
   const el = document.activeElement;
   if (!el) return null;
@@ -982,6 +1146,7 @@ document.addEventListener('click', (e) => {
   // clicking directly on the dimmed overlay backdrop (not inside the panel box) closes it
   if (e.target.dataset.action === 'overlay-click') { closePanelRc(); return; }
   if (e.target.dataset.action === 'cancel-delete' && !e.target.closest('[data-stop]')) { cancelDelete(); return; }
+  if (e.target.dataset.action === 'close-tag-settings' && !e.target.closest('[data-stop]')) { closeTagSettings(); return; }
 
   const target = e.target.closest('[data-action]');
   if (!target) return;
@@ -1020,6 +1185,17 @@ document.addEventListener('click', (e) => {
       break;
     case 'remove-photo': removeCardPhoto(type, id); break;
     case 'remove-form-photo': patchDraft({ imageUrl: null }); break;
+    case 'open-tag-settings': openTagSettings(); break;
+    case 'close-tag-settings': closeTagSettings(); break;
+    case 'start-rename-tag': rcPendingFocus = { selector: '#rc-tag-rename' }; startRenameTag(id); break;
+    case 'cancel-rename-tag': cancelRenameTag(); break;
+    case 'commit-rename-tag': commitRenameTag(); break;
+    case 'start-merge-tag': startMergeTag(id); break;
+    case 'cancel-merge-tag': cancelMergeTag(); break;
+    case 'confirm-merge-tag': if (!target.disabled) confirmMergeTag(); break;
+    case 'set-merge-keep': setMergeKeep(target.dataset.id); break;
+    case 'ask-delete-tag': askDeleteTag(id, target.dataset.name); break;
+    case 'add-new-tag-settings': if (!target.disabled) addNewTagSettings(); break;
   }
 });
 
@@ -1034,6 +1210,8 @@ document.addEventListener('input', (e) => {
   if (id === 'rc-ing-search') { patchDraft({ ingSearch: e.target.value }); return; }
   if (id === 'rc-new-tag') { patchDraft({ newTag: e.target.value }); return; }
   if (id === 'rc-f-notes') { patchDraft({ notesDraft: e.target.value }); return; }
+  if (id === 'rc-tag-rename') { patchTagModal({ renameValue: e.target.value }); return; }
+  if (id === 'rc-new-tag-name') { patchTagModal({ newTagName: e.target.value }); return; }
   if (e.target.classList.contains('rc-ing-gram')) { setIngGrams(Number(e.target.dataset.idx), e.target.value); return; }
 });
 
@@ -1043,12 +1221,20 @@ document.addEventListener('change', (e) => {
     renderRecipes();
   } else if (e.target.id === 'rc-photo-input') {
     applyPhotoFile(e.target.files && e.target.files[0]);
+  } else if (e.target.id === 'rc-tag-merge-target') {
+    setMergeTarget(e.target.value);
   }
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.target && e.target.id === 'rc-new-tag' && e.key === 'Enter') {
     commitNewTag();
+  }
+  if (e.target && e.target.id === 'rc-tag-rename' && e.key === 'Enter') {
+    commitRenameTag();
+  }
+  if (e.target && e.target.id === 'rc-new-tag-name' && e.key === 'Enter') {
+    addNewTagSettings();
   }
 });
 

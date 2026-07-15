@@ -9,7 +9,6 @@ const SLOT_META_WK = [
 ];
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const WD_HEADS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const ALL_TAGS_WK = ['High protein', 'Vegetarian', 'Grains', 'Fruit', 'Dairy', 'Snack', 'Healthy fats', 'Meat', 'Fish'];
 
 // combos of item ids used by "Randomize meals" to fill empty future slots
 const RANDOMIZE_POOL = [
@@ -98,13 +97,17 @@ function recipeTotalsWk(r) {
   return { kcal, protein, grams: grams || 100, broken };
 }
 
+function tagNamesWk(ids) {
+  return (ids || []).map((tid) => Data.getTagById(tid)).filter(Boolean).map((t) => t.name);
+}
+
 function itemByIdWk(id) {
   const it = Data.getItemById(id);
-  if (it) return { id: it.id, name: it.name, tags: it.tags, kcal: it.kcal, protein: it.protein, wholeG: it.wholeG || 100, isRecipe: false, favourite: !!it.favourite };
+  if (it) return { id: it.id, name: it.name, tagIds: it.tagIds || [], kcal: it.kcal, protein: it.protein, wholeG: it.wholeG || 100, isRecipe: false, favourite: !!it.favourite };
   const r = Data.getRecipeById(id);
   if (!r) return null;
   const t = recipeTotalsWk(r);
-  return { id: r.id, name: r.name, tags: r.tags, kcal: (t.kcal / t.grams) * 100, protein: (t.protein / t.grams) * 100, wholeG: t.grams, isRecipe: true, broken: t.broken, favourite: !!r.favourite };
+  return { id: r.id, name: r.name, tagIds: r.tagIds || [], kcal: (t.kcal / t.grams) * 100, protein: (t.protein / t.grams) * 100, wholeG: t.grams, isRecipe: true, broken: t.broken, favourite: !!r.favourite };
 }
 
 function fullLibraryWk() {
@@ -565,7 +568,7 @@ function renderModalWk() {
       <div data-action="toggle-item" data-id="${it.id}" style="display:flex; align-items:center; gap:14px; padding:12px 8px; margin:0 -6px; border-radius:8px; border-bottom:1px solid rgba(42,58,74,0.5); cursor:pointer; transition:background 150ms ease;" onmouseover="this.style.background='#233040'" onmouseout="this.style.background='transparent'">
         <div style="flex:1; min-width:0;">
           <div style="display:flex; align-items:center; font-size:15px; font-weight:500; color:#E8EDF2;">${recipeBadge}${escapeHtmlWk(it.name)}</div>
-          <div style="font-size:12px; color:#8B9BAD; margin-top:2px;">${escapeHtmlWk(it.tags.join(' · '))}</div>
+          <div style="font-size:12px; color:#8B9BAD; margin-top:2px;">${escapeHtmlWk(tagNamesWk(it.tagIds).join(' · '))}</div>
         </div>
         <div style="text-align:right; flex-shrink:0;">
           <div style="font-size:14px; font-weight:500; color:#E8EDF2;">${wholePortionKcalWk(it)} kcal</div>
@@ -577,7 +580,7 @@ function renderModalWk() {
   };
 
   const q = s.search.trim().toLowerCase();
-  const matches = (it) => (!q || it.name.toLowerCase().includes(q)) && (s.activeTags.length === 0 || it.tags.some((tg) => s.activeTags.includes(tg)));
+  const matches = (it) => (!q || it.name.toLowerCase().includes(q)) && (s.activeTags.length === 0 || it.tagIds.some((tg) => s.activeTags.includes(tg)));
   const showSections = !q && s.activeTags.length === 0;
   const filtered = library.filter(matches);
   const noResults = !showSections && filtered.length === 0;
@@ -640,9 +643,9 @@ function renderModalWk() {
     `
     : '';
 
-  const tagsHtml = ALL_TAGS_WK.map((t) => {
-    const active = s.activeTags.includes(t);
-    return `<div class="chip${active ? ' active' : ''}" data-action="toggle-tag" data-tag="${escapeHtmlWk(t)}">${escapeHtmlWk(t)}</div>`;
+  const tagsHtml = Data.getTags().map((t) => {
+    const active = s.activeTags.includes(t.id);
+    return `<div class="chip${active ? ' active' : ''}" data-action="toggle-tag" data-tag="${t.id}">${escapeHtmlWk(t.name)}</div>`;
   }).join('');
 
   const step1Html = `

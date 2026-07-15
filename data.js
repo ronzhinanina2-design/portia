@@ -7,6 +7,27 @@ function uid(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Master tag vocabulary shared across Today/Week/Recipes. Items and recipes
+// reference these by id (`tagIds`) instead of storing their own free-text
+// tag strings, so renaming/merging/deleting a tag in one place cascades
+// everywhere it's used instead of requiring a find-and-replace per record.
+const DEFAULT_TAG_NAMES = ['High protein', 'Vegetarian', 'Grains', 'Fruit', 'Dairy', 'Snack', 'Meat', 'Fish', 'Healthy fats'];
+
+// Deterministic (not random) so independently migrating the same tag name on
+// two unsynced devices converges on the same id instead of creating two rows
+// for "Vegetarian" that only merge back into one after the next sync.
+function tagIdForName(name) {
+  const slug = String(name).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `tag-${slug || 'untitled'}`;
+}
+function makeTag(name, createdAt) {
+  return { id: tagIdForName(name), name: String(name).trim(), createdAt: createdAt || new Date().toISOString().slice(0, 10) };
+}
+function defaultTags() {
+  const now = new Date().toISOString().slice(0, 10);
+  return DEFAULT_TAG_NAMES.map((name) => makeTag(name, now));
+}
+
 // Keeps a dated-entry list (weight/waist/hips) sorted ascending by date so
 // "most recent" is always the last element, and overwrites same-day entries
 // instead of duplicating them so backfilling an earlier date after logging
@@ -64,7 +85,89 @@ function seedData() {
     lastMetDate: null,
   };
 
-  return { items, recipes, logs, weight, waist, hips, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak, proteinStreak };
+  return { items, recipes, logs, weight, waist, hips, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak, proteinStreak, deletedIds: [], tags: defaultTags() };
+}
+
+// One-time upgrade from free-text `tags: string[]` on each item/recipe (plus
+// the interim shared-vocabulary `tags: string[]` on the data root) to a
+// master `tags` table of {id, name} rows referenced by `tagIds` on items and
+// recipes. Detected by shape — old data has string entries where the new
+// shape has tag objects — so it's safe to run on every load; it's a no-op
+// once everything's already migrated.
+function migrateTagsIfNeeded(parsed) {
+  const rootNeedsMigration = (parsed.tags || []).some((t) => typeof t === 'string');
+  // Keyed off missing `tagIds` rather than presence of `tags` — a record can
+  // legitimately carry both (e.g. a `tags` string array kept around for an
+  // older deployed frontend that hasn't picked up the new schema yet), and
+  // re-migrating an already-migrated record would silently overwrite any
+  // rename/merge done since via the tag ids, since it re-derives tagIds from
+  // the (now stale) free-text strings.
+  const recordsNeedMigration = [...(parsed.items || []), ...(parsed.recipes || [])].some((r) => !Array.isArray(r.tagIds));
+  if (!rootNeedsMigration && !recordsNeedMigration) {
+    (parsed.items || []).forEach((i) => { if (!i.tagIds) i.tagIds = []; });
+    (parsed.recipes || []).forEach((r) => { if (!r.tagIds) r.tagIds = []; });
+    if (!parsed.tags) parsed.tags = [];
+    return;
+  }
+
+  // normalized name -> { original casing -> { count, lastCreatedAt } }, so
+  // duplicates that only differ by case/whitespace collapse into one tag,
+  // keeping whichever original casing was most common (tie: most recent).
+  const variantsByNorm = new Map();
+  const recordTag = (raw, createdAt) => {
+    const name = String(raw || '').trim();
+    if (!name) return;
+    const norm = name.toLowerCase();
+    if (!variantsByNorm.has(norm)) variantsByNorm.set(norm, new Map());
+    const variants = variantsByNorm.get(norm);
+    const v = variants.get(name) || { count: 0, lastCreatedAt: '' };
+    v.count += 1;
+    if ((createdAt || '') > v.lastCreatedAt) v.lastCreatedAt = createdAt || '';
+    variants.set(name, v);
+  };
+  [...(parsed.items || []), ...(parsed.recipes || [])].forEach((r) => {
+    (r.tags || []).forEach((t) => recordTag(t, r.createdAt));
+  });
+  (parsed.tags || []).forEach((t) => { if (typeof t === 'string') recordTag(t, ''); });
+
+  const normToTag = new Map();
+  const mergeLog = [];
+  const todayIso = new Date().toISOString().slice(0, 10);
+  variantsByNorm.forEach((variants, norm) => {
+    let bestName = null, bestCount = -1, bestDate = '';
+    const allNames = [];
+    variants.forEach((v, name) => {
+      allNames.push(name);
+      if (v.count > bestCount || (v.count === bestCount && v.lastCreatedAt >= bestDate)) {
+        bestCount = v.count; bestDate = v.lastCreatedAt; bestName = name;
+      }
+    });
+    normToTag.set(norm, makeTag(bestName, todayIso));
+    if (allNames.length > 1) mergeLog.push(`  "${allNames.join('", "')}" -> "${bestName}"`);
+  });
+
+  const mapRecordTags = (list) => {
+    (list || []).forEach((r) => {
+      const ids = [];
+      (r.tags || []).forEach((raw) => {
+        const name = String(raw || '').trim();
+        if (!name) return;
+        const tag = normToTag.get(name.toLowerCase());
+        if (tag && !ids.includes(tag.id)) ids.push(tag.id);
+      });
+      r.tagIds = ids;
+      delete r.tags;
+    });
+  };
+  mapRecordTags(parsed.items);
+  mapRecordTags(parsed.recipes);
+  parsed.tags = Array.from(normToTag.values());
+
+  if (mergeLog.length) {
+    console.log('[Portia] Tag migration merged duplicate tags:\n' + mergeLog.join('\n'));
+  } else {
+    console.log(`[Portia] Tag migration complete — ${parsed.tags.length} tags moved to id-based references.`);
+  }
 }
 
 // Pre-dated-history saves stored waist/hips as a single goals.waistCurrent /
@@ -102,18 +205,74 @@ const supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
+// Brings any parsed/pulled data object up to the current shape. Applied to
+// both localStorage reads and remote pulls so mergeRemoteAndLocal can always
+// assume every field it touches exists, regardless of which device or how
+// old the copy is.
+function normalizeData(parsed) {
+  if (!parsed.dayLocks) parsed.dayLocks = {};
+  if (!parsed.waterLogs) parsed.waterLogs = {};
+  if (!parsed.waterStreak) parsed.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
+  if (!parsed.proteinStreak) parsed.proteinStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
+  if (!parsed.deletedIds) parsed.deletedIds = [];
+  if (parsed.goals && parsed.goals.waterTarget == null) parsed.goals.waterTarget = 2000;
+  migrateMeasureHistory(parsed);
+  migrateTagsIfNeeded(parsed);
+  // Base slot logs used to be created without an id (only "extra" logs added
+  // via "Add meal" got one). Merge needs every log addressable by a stable
+  // key, so backfill one here rather than special-casing id-less logs.
+  (parsed.logs || []).forEach((l) => { if (!l.id) l.id = uid('log'); });
+  return parsed;
+}
+
+function mergeById(remoteList, localList, deletedIds) {
+  const map = new Map();
+  (remoteList || []).forEach((e) => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
+  (localList || []).forEach((e) => { if (!deletedIds.has(e.id)) map.set(e.id, e); });
+  return Array.from(map.values());
+}
+
+function mergeDated(remoteList, localList) {
+  const map = new Map();
+  (remoteList || []).forEach((e) => map.set(e.date, e));
+  (localList || []).forEach((e) => map.set(e.date, e));
+  return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Combines this device's local cache with whatever another device has
+// already pushed to Supabase. The old sync compared timestamps and had
+// whichever side was "newer" overwrite the other wholesale — so saving from
+// one device could silently erase an addition made from another device in
+// between syncs (e.g. an item added on mobile, then wiped out by the next
+// save from a desktop tab that never re-pulled). Merging entity collections
+// by id/date instead means concurrent additions from both devices survive.
+// Deletions are tracked in deletedIds so a delete on one device isn't
+// resurrected by a stale copy still holding that record on the other.
+function mergeRemoteAndLocal(remote, local) {
+  const deletedIds = new Set([...(remote.deletedIds || []), ...(local.deletedIds || [])]);
+  return {
+    items: mergeById(remote.items, local.items, deletedIds),
+    recipes: mergeById(remote.recipes, local.recipes, deletedIds),
+    logs: mergeById(remote.logs, local.logs, deletedIds),
+    weight: mergeDated(remote.weight, local.weight),
+    waist: mergeDated(remote.waist, local.waist),
+    hips: mergeDated(remote.hips, local.hips),
+    dayLocks: { ...remote.dayLocks, ...local.dayLocks },
+    waterLogs: { ...remote.waterLogs, ...local.waterLogs },
+    goals: { ...remote.goals, ...local.goals },
+    streak: { ...remote.streak, ...local.streak },
+    waterStreak: { ...remote.waterStreak, ...local.waterStreak },
+    proteinStreak: { ...remote.proteinStreak, ...local.proteinStreak },
+    tags: mergeById(remote.tags, local.tags, deletedIds),
+    deletedIds: Array.from(deletedIds),
+  };
+}
+
 function readLocalOrSeed() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
     try {
-      const parsed = JSON.parse(raw);
-      if (!parsed.dayLocks) parsed.dayLocks = {};
-      if (!parsed.waterLogs) parsed.waterLogs = {};
-      if (!parsed.waterStreak) parsed.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
-      if (!parsed.proteinStreak) parsed.proteinStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
-      if (parsed.goals && parsed.goals.waterTarget == null) parsed.goals.waterTarget = 2000;
-      migrateMeasureHistory(parsed);
-      return parsed;
+      return normalizeData(JSON.parse(raw));
     } catch (e) {
       // fall through to reseed
     }
@@ -128,18 +287,6 @@ let cache = readLocalOrSeed();
 let resolveReady;
 const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
 
-// Tracks when THIS device last wrote data, independent of whether the
-// Supabase push actually landed yet. syncFromRemote() uses this to decide
-// whether a pulled row is actually newer than what we already have —
-// without it, a remote pull always wins, which silently destroys any local
-// write whose push hasn't finished landing yet (e.g. user navigates away
-// right after pressing a button, before the fire-and-forget upsert completes).
-const LOCAL_UPDATED_KEY = 'portia-data-updated-at';
-
-function localUpdatedAt() {
-  return Number(localStorage.getItem(LOCAL_UPDATED_KEY) || 0);
-}
-
 function pushToRemote(data, ts) {
   if (!supabaseClient) return Promise.resolve();
   const updatedAt = new Date(ts || Date.now()).toISOString();
@@ -150,34 +297,31 @@ function pushToRemote(data, ts) {
     .catch((e) => console.warn('Supabase push failed', e));
 }
 
+async function fetchRemoteRow() {
+  const { data: row, error } = await supabaseClient
+    .from('app_data')
+    .select('data')
+    .eq('id', APP_DATA_ROW_ID)
+    .maybeSingle();
+  if (error) throw error;
+  return row && row.data ? normalizeData(row.data) : null;
+}
+
 async function syncFromRemote() {
   if (!supabaseClient) { resolveReady(); return; }
   try {
-    const { data: row, error } = await supabaseClient
-      .from('app_data')
-      .select('data, updated_at')
-      .eq('id', APP_DATA_ROW_ID)
-      .maybeSingle();
-    if (error) throw error;
-    if (row && row.data) {
-      const remoteTs = new Date(row.updated_at).getTime();
-      if (remoteTs > localUpdatedAt()) {
-        cache = row.data;
-        if (!cache.dayLocks) cache.dayLocks = {};
-        if (!cache.waterLogs) cache.waterLogs = {};
-        if (!cache.waterStreak) cache.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
-        if (!cache.proteinStreak) cache.proteinStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
-        if (cache.goals && cache.goals.waterTarget == null) cache.goals.waterTarget = 2000;
-        migrateMeasureHistory(cache);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
-        localStorage.setItem(LOCAL_UPDATED_KEY, String(remoteTs));
-      } else {
-        // Our local copy is at least as new as remote — make sure remote catches up
-        // instead of letting a stale remote row silently win.
-        await pushToRemote(cache, localUpdatedAt() || Date.now());
+    const remoteData = await fetchRemoteRow();
+    if (remoteData) {
+      const merged = mergeRemoteAndLocal(remoteData, cache);
+      cache = merged;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      // Only push back if merging actually pulled in something new — avoids
+      // an upsert on every single page load when nothing changed.
+      if (JSON.stringify(merged) !== JSON.stringify(remoteData)) {
+        await pushToRemote(merged, Date.now());
       }
     } else {
-      await pushToRemote(cache, localUpdatedAt() || Date.now());
+      await pushToRemote(cache, Date.now());
     }
   } catch (e) {
     console.warn('Supabase sync failed, using local cache', e);
@@ -191,21 +335,44 @@ function loadData() {
   return cache;
 }
 
+// Every write is queued through this chain so concurrent saves (e.g. several
+// Data.* calls in quick succession) pull-merge-push one at a time in order,
+// instead of racing separate fetch/upsert pairs against each other.
+let pushChain = Promise.resolve();
+
+function mergeAndPush() {
+  pushChain = pushChain.then(async () => {
+    if (!supabaseClient) return;
+    let merged = cache;
+    try {
+      const remoteData = await fetchRemoteRow();
+      if (remoteData) merged = mergeRemoteAndLocal(remoteData, cache);
+    } catch (e) {
+      console.warn('Supabase pull-before-push failed, pushing local as-is', e);
+    }
+    const now = Date.now();
+    cache = merged;
+    // localStorage has a small per-origin quota (~5MB) and the blob embeds
+    // every uploaded photo as base64, so it can throw QuotaExceededError
+    // once enough photos pile up. Don't let that stop the Supabase push.
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    } catch (e) {
+      console.warn('localStorage save failed (quota?), relying on Supabase', e);
+    }
+    await pushToRemote(merged, now);
+  });
+  return pushChain;
+}
+
 function saveData(data) {
   cache = data;
-  const now = Date.now();
-  // localStorage has a small per-origin quota (~5MB) and the blob embeds every
-  // uploaded photo as base64, so it can throw QuotaExceededError once enough
-  // photos pile up. If we let that throw escape here, the line below that
-  // pushes to Supabase never runs — the write is lost everywhere and silently
-  // disappears on next load even though the UI looked like it saved.
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    localStorage.setItem(LOCAL_UPDATED_KEY, String(now));
   } catch (e) {
     console.warn('localStorage save failed (quota?), relying on Supabase', e);
   }
-  pushToRemote(data, now);
+  mergeAndPush();
 }
 
 const Data = {
@@ -234,6 +401,7 @@ const Data = {
   deleteItem(id) {
     const data = loadData();
     data.items = data.items.filter((i) => i.id !== id);
+    data.deletedIds.push(id);
     saveData(data);
   },
   toggleItemFavourite(id) {
@@ -278,6 +446,7 @@ const Data = {
   deleteRecipe(id) {
     const data = loadData();
     data.recipes = data.recipes.filter((r) => r.id !== id);
+    data.deletedIds.push(id);
     saveData(data);
   },
 
@@ -304,11 +473,14 @@ const Data = {
     const data = loadData();
     const idx = data.logs.findIndex((l) => l.date === date && l.slot === slot);
     if (!entries || entries.length === 0) {
-      if (idx !== -1) data.logs.splice(idx, 1);
+      if (idx !== -1) {
+        data.deletedIds.push(data.logs[idx].id);
+        data.logs.splice(idx, 1);
+      }
       saveData(data);
       return null;
     }
-    const log = idx === -1 ? { date, slot, entries } : { ...data.logs[idx], entries };
+    const log = idx === -1 ? { id: uid('log'), date, slot, entries } : { ...data.logs[idx], entries };
     if (idx === -1) data.logs.push(log);
     else data.logs[idx] = log;
     saveData(data);
@@ -333,6 +505,7 @@ const Data = {
     if (idx === -1) return null;
     if (!entries || entries.length === 0) {
       data.logs.splice(idx, 1);
+      data.deletedIds.push(id);
       saveData(data);
       return null;
     }
@@ -343,6 +516,7 @@ const Data = {
   deleteLogById(id) {
     const data = loadData();
     data.logs = data.logs.filter((l) => l.id !== id);
+    data.deletedIds.push(id);
     saveData(data);
   },
 
@@ -373,6 +547,89 @@ const Data = {
   addHipsEntry(entry) {
     const data = loadData();
     upsertDatedEntry(data.hips, entry.date, entry.value);
+    saveData(data);
+  },
+
+  // ---- tags (master vocabulary referenced by id from items/recipes) ----
+  getTags() {
+    return loadData().tags;
+  },
+  getTagById(id) {
+    return loadData().tags.find((t) => t.id === id) || null;
+  },
+  // scope: 'items' | 'recipes' | undefined (both). Counts are derived on
+  // every call rather than cached, so they can never drift from what's
+  // actually referenced.
+  getTagUsageCounts(scope) {
+    const data = loadData();
+    const counts = new Map();
+    data.tags.forEach((t) => counts.set(t.id, 0));
+    const bump = (rec) => (rec.tagIds || []).forEach((id) => counts.set(id, (counts.get(id) || 0) + 1));
+    if (scope !== 'recipes') data.items.forEach(bump);
+    if (scope !== 'items') data.recipes.forEach(bump);
+    return counts;
+  },
+  getTopTags(scope, n) {
+    const counts = this.getTagUsageCounts(scope);
+    return this.getTags()
+      .filter((t) => (counts.get(t.id) || 0) > 0)
+      .sort((a, b) => (counts.get(b.id) || 0) - (counts.get(a.id) || 0))
+      .slice(0, n || 8);
+  },
+  addTag(name) {
+    const data = loadData();
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return null;
+    const norm = trimmed.toLowerCase();
+    const existing = data.tags.find((t) => t.name.trim().toLowerCase() === norm);
+    if (existing) return existing;
+    const tag = makeTag(trimmed);
+    data.tags.push(tag);
+    saveData(data);
+    return tag;
+  },
+  // Renaming to a name that already belongs to another tag is treated as a
+  // merge (the two tags can't both exist under the same name) rather than
+  // blocked, so the user doesn't have to separately discover the merge flow.
+  renameTag(id, name) {
+    const data = loadData();
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return null;
+    const norm = trimmed.toLowerCase();
+    const collision = data.tags.find((t) => t.id !== id && t.name.trim().toLowerCase() === norm);
+    if (collision) return this.mergeTags(id, collision.id, collision.name);
+    const idx = data.tags.findIndex((t) => t.id === id);
+    if (idx === -1) return null;
+    data.tags[idx] = { ...data.tags[idx], name: trimmed };
+    saveData(data);
+    return data.tags[idx];
+  },
+  mergeTags(loserId, winnerId, survivingName) {
+    if (loserId === winnerId) return null;
+    const data = loadData();
+    const winnerIdx = data.tags.findIndex((t) => t.id === winnerId);
+    if (winnerIdx === -1) return null;
+    const repoint = (list) => list.forEach((rec) => {
+      if (!rec.tagIds || !rec.tagIds.includes(loserId)) return;
+      const ids = rec.tagIds.filter((x) => x !== loserId);
+      if (!ids.includes(winnerId)) ids.push(winnerId);
+      rec.tagIds = ids;
+    });
+    repoint(data.items);
+    repoint(data.recipes);
+    data.tags[winnerIdx] = { ...data.tags[winnerIdx], name: (survivingName || data.tags[winnerIdx].name).trim() };
+    data.tags = data.tags.filter((t) => t.id !== loserId);
+    data.deletedIds.push(loserId);
+    saveData(data);
+    return data.tags[winnerIdx];
+  },
+  deleteTag(id) {
+    const data = loadData();
+    const strip = (list) => list.forEach((rec) => { if (rec.tagIds) rec.tagIds = rec.tagIds.filter((x) => x !== id); });
+    strip(data.items);
+    strip(data.recipes);
+    data.tags = data.tags.filter((t) => t.id !== id);
+    data.deletedIds.push(id);
     saveData(data);
   },
 

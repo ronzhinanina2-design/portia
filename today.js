@@ -10,7 +10,6 @@ const SLOT_META = [
   ['snack', 'Snack'],
   ['dinner', 'Dinner'],
 ];
-const ALL_TAGS = ['High protein', 'Vegetarian', 'Grains', 'Fruit', 'Dairy', 'Snack', 'Healthy fats', 'Meat', 'Fish'];
 
 function fmt(n) {
   return n.toLocaleString('en-US');
@@ -70,13 +69,17 @@ function recipeTotals(r) {
 // Resolves an id against both items and recipes, returning a normalized
 // shape with per-100g kcal/protein + wholeG so existing portion math
 // (calc/wholePortionKcal/etc) works unmodified for either source.
+function tagNamesTd(ids) {
+  return (ids || []).map((tid) => Data.getTagById(tid)).filter(Boolean).map((t) => t.name);
+}
+
 function libItemById(id) {
   const it = Data.getItemById(id);
-  if (it) return { id: it.id, name: it.name, tags: it.tags, kcal: it.kcal, protein: it.protein, wholeG: it.wholeG || 100, isRecipe: false, favourite: !!it.favourite };
+  if (it) return { id: it.id, name: it.name, tagIds: it.tagIds || [], kcal: it.kcal, protein: it.protein, wholeG: it.wholeG || 100, isRecipe: false, favourite: !!it.favourite };
   const r = Data.getRecipeById(id);
   if (!r) return null;
   const t = recipeTotals(r);
-  return { id: r.id, name: r.name, tags: r.tags, kcal: (t.kcal / t.grams) * 100, protein: (t.protein / t.grams) * 100, wholeG: t.grams, isRecipe: true, broken: t.broken, favourite: !!r.favourite };
+  return { id: r.id, name: r.name, tagIds: r.tagIds || [], kcal: (t.kcal / t.grams) * 100, protein: (t.protein / t.grams) * 100, wholeG: t.grams, isRecipe: true, broken: t.broken, favourite: !!r.favourite };
 }
 
 function fullLibrary() {
@@ -756,7 +759,7 @@ function renderModal() {
       <div data-action="toggle-item" data-id="${it.id}" style="display:flex; align-items:center; gap:14px; padding:12px 8px; margin:0 -6px; border-radius:8px; border-bottom:1px solid rgba(42,58,74,0.5); cursor:pointer; transition:background 150ms ease;" onmouseover="this.style.background='#233040'" onmouseout="this.style.background='transparent'">
         <div style="flex:1; min-width:0;">
           <div style="display:flex; align-items:center; font-size:15px; font-weight:500; color:#E8EDF2;">${recipeBadge}${escapeHtml(it.name)}</div>
-          <div style="font-size:12px; color:#8B9BAD; margin-top:2px;">${escapeHtml(it.tags.join(' · '))}</div>
+          <div style="font-size:12px; color:#8B9BAD; margin-top:2px;">${escapeHtml(tagNamesTd(it.tagIds).join(' · '))}</div>
         </div>
         <div style="text-align:right; flex-shrink:0;">
           <div style="font-size:14px; font-weight:500; color:#E8EDF2;">${wholePortionKcal(it)} kcal</div>
@@ -768,7 +771,7 @@ function renderModal() {
   };
 
   const q = s.search.trim().toLowerCase();
-  const matches = (it) => (!q || it.name.toLowerCase().includes(q)) && (s.activeTags.length === 0 || it.tags.some((tg) => s.activeTags.includes(tg)));
+  const matches = (it) => (!q || it.name.toLowerCase().includes(q)) && (s.activeTags.length === 0 || it.tagIds.some((tg) => s.activeTags.includes(tg)));
   const showSections = !q && s.activeTags.length === 0;
   const filtered = library.filter(matches);
   const noResults = !showSections && filtered.length === 0;
@@ -831,9 +834,9 @@ function renderModal() {
     `
     : '';
 
-  const tagsHtml = ALL_TAGS.map((t) => {
-    const active = s.activeTags.includes(t);
-    return `<div class="chip${active ? ' active' : ''}" data-action="toggle-tag" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</div>`;
+  const tagsHtml = Data.getTags().map((t) => {
+    const active = s.activeTags.includes(t.id);
+    return `<div class="chip${active ? ' active' : ''}" data-action="toggle-tag" data-tag="${t.id}">${escapeHtml(t.name)}</div>`;
   }).join('');
 
   const addFlowNeedsSlot = s.isAddFlow && !slotChosen;

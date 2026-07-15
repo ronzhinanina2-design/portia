@@ -271,11 +271,14 @@ function pickAnyFromSlotWk(items) {
 // (Rule 7) in order until something is eligible. Rule 1 (slot tag) never relaxes —
 // `items`/`recipes` are pre-filtered to the slot and every helper above only
 // ever picks from that pre-filtered set.
-function buildMainCandidateWk(slotKey, targetDateKey) {
+function buildMainCandidateWk(slotKey, targetDateKey, avoidSig) {
   const slotTagName = SLOT_TAG_NAMES_WK[slotKey];
   const items = Data.getItems().filter((it) => hasTagWk(it, slotTagName));
   const recipes = Data.getRecipes().filter((r) => hasTagWk(r, slotTagName));
   const recent = recentSignaturesForSlotWk(targetDateKey, slotKey, NO_REPEAT_DAYS_WK);
+  // Reshuffling an already-randomized slot: avoid handing back the exact same
+  // pick it already has, same as the 3-day no-repeat rule (and same fallback).
+  if (avoidSig) recent.add(avoidSig);
 
   const stages = [
     { noRepeat: true, allowAdditions: true, requireAnchor: true },
@@ -306,14 +309,22 @@ function buildMainCandidateWk(slotKey, targetDateKey) {
 }
 
 // Rule 5: snacks are always exactly one Snack-tagged item, never a combo or recipe.
-function buildSnackCandidateWk(targetDateKey) {
+function buildSnackCandidateWk(targetDateKey, avoidSig) {
   const items = Data.getItems().filter((it) => hasTagWk(it, 'Snack'));
   if (!items.length) return null;
   const recent = recentSignaturesForSlotWk(targetDateKey, 'snack', NO_REPEAT_DAYS_WK);
+  if (avoidSig) recent.add(avoidSig);
   const fresh = items.filter((it) => !recent.has(`combo:${it.id}`));
   const pick = pickRandomWk(fresh.length ? fresh : items);
   return pick ? { entries: [entryForIdWk(pick.id)] } : null;
 }
+
+// Slots that "Randomize meals" itself filled (as `date|slot` keys), tracked
+// in memory for this page session only. A second press reshuffles these —
+// slots the user planned by hand are never in this set, so they're always
+// left alone, matching the documented "doesn't overwrite already-planned
+// slots" behavior.
+const randomizedSlotKeysWk = new Set();
 
 function randomize() {
   if (wkState.weekOffset < 0) return;
@@ -323,11 +334,15 @@ function randomize() {
     const k = dateKey(d);
     if (statusOf(k) !== 'future') continue;
     SLOT_META_WK.forEach(([sk]) => {
+      const key = `${k}|${sk}`;
       const existing = Data.getLogForSlot(k, sk);
-      if (existing) return;
-      const candidate = sk === 'snack' ? buildSnackCandidateWk(k) : buildMainCandidateWk(sk, k);
+      const isReshuffle = existing && randomizedSlotKeysWk.has(key);
+      if (existing && !isReshuffle) return; // planned by hand — leave it
+      const avoidSig = isReshuffle ? signatureForEntriesWk(existing.entries) : null;
+      const candidate = sk === 'snack' ? buildSnackCandidateWk(k, avoidSig) : buildMainCandidateWk(sk, k, avoidSig);
       if (!candidate) return;
       Data.setLogForSlot(k, sk, candidate.entries);
+      randomizedSlotKeysWk.add(key);
     });
   }
   renderWeek();
@@ -351,6 +366,7 @@ function closeModalWk() {
   setWkState({ modalKey: null, modalSlot: null });
 }
 function removePlanned(k, sk) {
+  randomizedSlotKeysWk.delete(`${k}|${sk}`);
   Data.clearLogForSlot(k, sk);
   renderWeek();
 }
@@ -404,6 +420,9 @@ function gotoStep1Wk() {
 }
 function savePlan() {
   const s = wkState;
+  // The user just touched this slot by hand — randomize should never claim
+  // it as its own again, whether they cleared it or set new contents.
+  randomizedSlotKeysWk.delete(`${s.modalKey}|${s.modalSlot}`);
   if (s.order.length === 0) {
     Data.clearLogForSlot(s.modalKey, s.modalSlot);
   } else {

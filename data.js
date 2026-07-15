@@ -11,7 +11,9 @@ function uid(prefix) {
 // reference these by id (`tagIds`) instead of storing their own free-text
 // tag strings, so renaming/merging/deleting a tag in one place cascades
 // everywhere it's used instead of requiring a find-and-replace per record.
-const DEFAULT_TAG_NAMES = ['High protein', 'Vegetarian', 'Grains', 'Fruit', 'Dairy', 'Snack', 'Meat', 'Fish', 'Healthy fats'];
+// Breakfast/Lunch/Dinner/Snack double as the slot tags randomize (week.js)
+// filters on — see portia-randomize-rules-cc-brief.md.
+const DEFAULT_TAG_NAMES = ['High protein', 'Vegetarian', 'Grains', 'Fruit', 'Dairy', 'Snack', 'Meat', 'Fish', 'Healthy fats', 'Breakfast', 'Lunch', 'Dinner', 'Garnish'];
 
 // Deterministic (not random) so independently migrating the same tag name on
 // two unsynced devices converges on the same id instead of creating two rows

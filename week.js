@@ -10,20 +10,6 @@ const SLOT_META_WK = [
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const WD_HEADS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-// combos of item ids used by "Randomize meals" to fill empty future slots
-const RANDOMIZE_POOL = [
-  ['yogurt', 'berries'],
-  ['chicken', 'brownrice'],
-  ['salmon', 'sweetpotato'],
-  ['eggs', 'avocado'],
-  ['quinoa', 'chicken'],
-  ['cottage', 'banana'],
-  ['almonds', 'berries'],
-  ['sweetpotato', 'eggs'],
-  ['yogurt', 'banana'],
-  ['salmon', 'brownrice'],
-];
-
 function fmtWk(n) {
   return n.toLocaleString('en-US');
 }
@@ -201,6 +187,134 @@ function setView(v) {
   setWkState({ view: v });
 }
 
+/* ============ Randomize meals — slot-aware rules ============ */
+/* See portia-randomize-rules-cc-brief.md. Slot filter (Rule 1) never relaxes;
+   everything else — additions, no-repeat — relaxes in the documented order
+   before a slot is left empty. */
+const SLOT_TAG_NAMES_WK = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
+const ANCHOR_TAG_NAMES_WK = ['Meat', 'Fish', 'High protein', 'Dairy'];
+const SIDE_TAG_NAMES_WK = ['Garnish', 'Vegetarian'];
+const NO_REPEAT_DAYS_WK = 3;
+
+function tagIdByNameWk(name) {
+  const t = Data.getTags().find((tg) => tg.name === name);
+  return t ? t.id : null;
+}
+function hasTagWk(entity, name) {
+  const id = tagIdByNameWk(name);
+  return !!id && (entity.tagIds || []).includes(id);
+}
+function isRecipeIdWk(id) {
+  return !!Data.getRecipeById(id);
+}
+// A candidate's identity for no-repeat purposes: a recipe id, or the sorted
+// set of item ids that made up an item-combo (order-independent).
+function signatureForEntriesWk(entries) {
+  if (entries.length === 1 && isRecipeIdWk(entries[0].itemId)) return `recipe:${entries[0].itemId}`;
+  return `combo:${entries.map((e) => e.itemId).slice().sort().join(',')}`;
+}
+function recentSignaturesForSlotWk(targetDateKey, slotKey, windowDays) {
+  const base = new Date(`${targetDateKey}T00:00:00`);
+  const sigs = new Set();
+  for (let i = 1; i <= windowDays; i++) {
+    const k = dateKey(addDays(base, -i));
+    const log = Data.getLogForSlot(k, slotKey);
+    if (log && log.entries.length) sigs.add(signatureForEntriesWk(log.entries));
+  }
+  return sigs;
+}
+function entryForIdWk(id) {
+  const it = itemByIdWk(id);
+  return { itemId: id, portion: 'whole', grams: it.wholeG || 100, kcal: wholePortionKcalWk(it), protein: wholePortionProteinWk(it) };
+}
+function pickRandomWk(list) {
+  return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+}
+function pickByTagWk(items, tagNames, excludeIds) {
+  return pickRandomWk(items.filter((it) => !excludeIds.includes(it.id) && tagNames.some((t) => hasTagWk(it, t))));
+}
+// Rule 3: exactly one anchor (Meat/Fish/High protein/Dairy). No anchor = no combo.
+function buildComboWk(items, allowAdditions) {
+  const anchor = pickByTagWk(items, ANCHOR_TAG_NAMES_WK, []);
+  if (!anchor) return null;
+  const combo = [anchor.id];
+  // Additions must exclude anything else carrying an anchor tag (Meat/Fish/High
+  // protein/Dairy) — otherwise a side that's incidentally also High protein (or
+  // similar) would give the combo two anchors instead of exactly one (Rule 3).
+  const nonAnchorItems = items.filter((it) => !ANCHOR_TAG_NAMES_WK.some((t) => hasTagWk(it, t)));
+  // Rule 4: one optional garnish/vegetarian side and one optional grain, capped at 3 items.
+  if (allowAdditions) {
+    if (Math.random() < 0.65) {
+      const side = pickByTagWk(nonAnchorItems, SIDE_TAG_NAMES_WK, combo);
+      if (side) combo.push(side.id);
+    }
+    if (Math.random() < 0.65) {
+      const grain = pickByTagWk(nonAnchorItems, ['Grains'], combo);
+      if (grain) combo.push(grain.id);
+    }
+    // Healthy fats are a condiment layered on top — doesn't count toward the cap.
+    if (Math.random() < 0.4) {
+      const fat = pickByTagWk(nonAnchorItems, ['Healthy fats'], combo);
+      if (fat) combo.push(fat.id);
+    }
+  }
+  return combo;
+}
+// Rule 7 final fallback: no anchor requirement at all, just anything in the slot pool.
+function pickAnyFromSlotWk(items) {
+  const it = pickRandomWk(items);
+  return it ? [it.id] : null;
+}
+
+// Builds one candidate (whole recipe or item-combo) for breakfast/lunch/dinner,
+// relaxing Rule 6 (no-repeat) then Rule 4 (additions) then the anchor requirement
+// (Rule 7) in order until something is eligible. Rule 1 (slot tag) never relaxes —
+// `items`/`recipes` are pre-filtered to the slot and every helper above only
+// ever picks from that pre-filtered set.
+function buildMainCandidateWk(slotKey, targetDateKey) {
+  const slotTagName = SLOT_TAG_NAMES_WK[slotKey];
+  const items = Data.getItems().filter((it) => hasTagWk(it, slotTagName));
+  const recipes = Data.getRecipes().filter((r) => hasTagWk(r, slotTagName));
+  const recent = recentSignaturesForSlotWk(targetDateKey, slotKey, NO_REPEAT_DAYS_WK);
+
+  const stages = [
+    { noRepeat: true, allowAdditions: true, requireAnchor: true },
+    { noRepeat: false, allowAdditions: true, requireAnchor: true },
+    { noRepeat: false, allowAdditions: false, requireAnchor: true },
+    { noRepeat: false, allowAdditions: false, requireAnchor: false },
+  ];
+
+  for (const stage of stages) {
+    const pool = [];
+    recipes.forEach((r) => {
+      if (stage.noRepeat && recent.has(`recipe:${r.id}`)) return;
+      pool.push({ entries: [entryForIdWk(r.id)] });
+    });
+    const seenCombos = new Set();
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const comboIds = stage.requireAnchor ? buildComboWk(items, stage.allowAdditions) : pickAnyFromSlotWk(items);
+      if (!comboIds) continue;
+      const sig = `combo:${comboIds.slice().sort().join(',')}`;
+      if (seenCombos.has(sig)) continue;
+      seenCombos.add(sig);
+      if (stage.noRepeat && recent.has(sig)) continue;
+      pool.push({ entries: comboIds.map((id) => entryForIdWk(id)) });
+    }
+    if (pool.length) return pickRandomWk(pool);
+  }
+  return null; // Rule 1's pool is genuinely empty — leave the slot empty.
+}
+
+// Rule 5: snacks are always exactly one Snack-tagged item, never a combo or recipe.
+function buildSnackCandidateWk(targetDateKey) {
+  const items = Data.getItems().filter((it) => hasTagWk(it, 'Snack'));
+  if (!items.length) return null;
+  const recent = recentSignaturesForSlotWk(targetDateKey, 'snack', NO_REPEAT_DAYS_WK);
+  const fresh = items.filter((it) => !recent.has(`combo:${it.id}`));
+  const pick = pickRandomWk(fresh.length ? fresh : items);
+  return pick ? { entries: [entryForIdWk(pick.id)] } : null;
+}
+
 function randomize() {
   if (wkState.weekOffset < 0) return;
   const mon = mondayOf(wkState.weekOffset);
@@ -211,12 +325,9 @@ function randomize() {
     SLOT_META_WK.forEach(([sk]) => {
       const existing = Data.getLogForSlot(k, sk);
       if (existing) return;
-      const combo = RANDOMIZE_POOL[Math.floor(Math.random() * RANDOMIZE_POOL.length)];
-      const entries = combo.map((id) => {
-        const it = itemByIdWk(id);
-        return { itemId: id, portion: 'whole', grams: it.wholeG || 100, kcal: wholePortionKcalWk(it), protein: wholePortionProteinWk(it) };
-      });
-      Data.setLogForSlot(k, sk, entries);
+      const candidate = sk === 'snack' ? buildSnackCandidateWk(k) : buildMainCandidateWk(sk, k);
+      if (!candidate) return;
+      Data.setLogForSlot(k, sk, candidate.entries);
     });
   }
   renderWeek();

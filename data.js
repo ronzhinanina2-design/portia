@@ -289,6 +289,9 @@ let cache = readLocalOrSeed();
 let resolveReady;
 const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
 
+// Plain unconditional write — only safe when there's no existing row to race
+// against (first-ever bootstrap). Any push that could be racing another
+// device's concurrent write must go through pushWithRetry instead.
 function pushToRemote(data, ts) {
   if (!supabaseClient) return Promise.resolve();
   const updatedAt = new Date(ts || Date.now()).toISOString();
@@ -302,29 +305,85 @@ function pushToRemote(data, ts) {
 async function fetchRemoteRow() {
   const { data: row, error } = await supabaseClient
     .from('app_data')
-    .select('data')
+    .select('data, updated_at')
     .eq('id', APP_DATA_ROW_ID)
     .maybeSingle();
   if (error) throw error;
-  return row && row.data ? normalizeData(row.data) : null;
+  if (!row) return null;
+  return { data: normalizeData(row.data), updatedAt: row.updated_at };
+}
+
+// Pulls the latest remote row, merges it with `baseline` (the local change
+// this call is responsible for landing), and writes back — but only if the
+// row's updated_at still matches what we just read. If another device wrote
+// in between, the conditional UPDATE affects zero rows (rather than
+// clobbering that write), and we loop: re-pull (now including the other
+// device's change), re-merge baseline into it, and try again. Without this,
+// two devices writing within the same pull-merge-push window both compute
+// their "merged" result from the same stale remote snapshot, and whichever
+// upserts last silently overwrites the other's addition — permanently,
+// since the losing device's own local cache then gets overwritten with that
+// same stale-merge result. This is the root cause of items added on one
+// device never appearing on another even after a reload.
+async function pushWithRetry(baseline) {
+  const MAX_ATTEMPTS = 6;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    let merged = baseline;
+    let expectedUpdatedAt = null;
+    let remoteData = null;
+    try {
+      const remote = await fetchRemoteRow();
+      if (remote) {
+        merged = mergeRemoteAndLocal(remote.data, baseline);
+        expectedUpdatedAt = remote.updatedAt;
+        remoteData = remote.data;
+      }
+    } catch (e) {
+      console.warn('Supabase pull-before-push failed, pushing local as-is', e);
+    }
+
+    cache = merged;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    } catch (e) {
+      // localStorage has a small per-origin quota (~5MB) and the blob embeds
+      // every uploaded photo as base64, so it can throw QuotaExceededError
+      // once enough photos pile up. Don't let that stop the Supabase push.
+      console.warn('localStorage save failed (quota?), relying on Supabase', e);
+    }
+
+    if (remoteData && JSON.stringify(merged) === JSON.stringify(remoteData)) {
+      return; // nothing local to contribute — skip the round trip
+    }
+
+    const now = new Date().toISOString();
+    if (expectedUpdatedAt == null) {
+      // No row existed yet (or the pull failed) — nothing to race against.
+      await pushToRemote(merged, Date.now());
+      return;
+    }
+
+    const { data: rows, error } = await supabaseClient
+      .from('app_data')
+      .update({ data: merged, updated_at: now })
+      .eq('id', APP_DATA_ROW_ID)
+      .eq('updated_at', expectedUpdatedAt)
+      .select('id');
+    if (error) {
+      console.warn('Supabase push failed', error);
+      return;
+    }
+    if (rows && rows.length > 0) return; // conditional update landed
+    // else: updated_at had already moved (another device won the race) —
+    // loop and re-merge against the newer remote state.
+  }
+  console.warn('Supabase push gave up after repeated concurrent-write conflicts; local change is saved and will sync on the next write.');
 }
 
 async function syncFromRemote() {
   if (!supabaseClient) { resolveReady(); return; }
   try {
-    const remoteData = await fetchRemoteRow();
-    if (remoteData) {
-      const merged = mergeRemoteAndLocal(remoteData, cache);
-      cache = merged;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-      // Only push back if merging actually pulled in something new — avoids
-      // an upsert on every single page load when nothing changed.
-      if (JSON.stringify(merged) !== JSON.stringify(remoteData)) {
-        await pushToRemote(merged, Date.now());
-      }
-    } else {
-      await pushToRemote(cache, Date.now());
-    }
+    await pushWithRetry(cache);
   } catch (e) {
     console.warn('Supabase sync failed, using local cache', e);
   } finally {
@@ -339,30 +398,16 @@ function loadData() {
 
 // Every write is queued through this chain so concurrent saves (e.g. several
 // Data.* calls in quick succession) pull-merge-push one at a time in order,
-// instead of racing separate fetch/upsert pairs against each other.
+// instead of racing separate fetch/upsert pairs against each other. This
+// only serializes writes within this tab — pushWithRetry's compare-and-swap
+// is what protects against a concurrent write from a different device/tab.
 let pushChain = Promise.resolve();
 
 function mergeAndPush() {
+  const baseline = cache;
   pushChain = pushChain.then(async () => {
     if (!supabaseClient) return;
-    let merged = cache;
-    try {
-      const remoteData = await fetchRemoteRow();
-      if (remoteData) merged = mergeRemoteAndLocal(remoteData, cache);
-    } catch (e) {
-      console.warn('Supabase pull-before-push failed, pushing local as-is', e);
-    }
-    const now = Date.now();
-    cache = merged;
-    // localStorage has a small per-origin quota (~5MB) and the blob embeds
-    // every uploaded photo as base64, so it can throw QuotaExceededError
-    // once enough photos pile up. Don't let that stop the Supabase push.
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-    } catch (e) {
-      console.warn('localStorage save failed (quota?), relying on Supabase', e);
-    }
-    await pushToRemote(merged, now);
+    await pushWithRetry(baseline);
   });
   return pushChain;
 }

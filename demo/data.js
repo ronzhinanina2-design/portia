@@ -115,31 +115,71 @@ const DEMO_RAW_RECIPES = [
   { name: 'Chicken breast with green beans and champignons', tags: ['High protein', 'Meat', 'Garnish', 'Lunch', 'Dinner'], ingredients: [['Chicken breast (oven baked)', 500], ['Champignons', 400], ['Green beans', 400], ['Spinach', 100]] },
 ];
 
+// Filenames in /demo/assets are named to match the item/recipe id exactly
+// (e.g. item-almonds.jpeg, recipe-veggie-salad-with-feta.jpeg), so a photo
+// resolves automatically once dropped in — no per-item wiring needed.
+const DEMO_ASSET_EXT = {
+  'item-almonds': 'jpeg',
+  'item-apples': 'jpeg',
+  'item-asparagus': 'jpeg',
+  'item-bell-pepper': 'jpeg',
+  'item-blueberries': 'jpeg',
+  'item-brown-rice': 'jpeg',
+  'item-buckwheat': 'jpeg',
+  'item-champignons': 'jpeg',
+  'item-greek-yoghurt': 'jpeg',
+  'item-green-beans': 'jpeg',
+  'item-spinach': 'jpeg',
+  'item-strawberries': 'jpeg',
+  'item-tomatoes': 'avif',
+  'item-walnuts': 'jpeg',
+  'recipe-baked-cod-with-roasted-vegetables': 'jpeg',
+  'recipe-buckwheat-with-chicken-and-vegetables': 'jpeg',
+  'recipe-chicken-breast-with-green-beans-and-champignons': 'jpg',
+  'recipe-cottage-cheese-bowl-with-honey-walnuts': 'jpeg',
+  'recipe-greek-yoghurt-with-blueberries': 'jpeg',
+  'recipe-pasta-with-shrimp-olives': 'jpeg',
+  'recipe-salmon-with-roasted-asparagus': 'jpeg',
+  'recipe-scrambled-eggs-with-spinach-and-tomatoes': 'webp',
+  'recipe-turkey-meatballs-in-tomato-sauce': 'jpeg',
+  'recipe-veggie-salad-with-feta': 'jpeg',
+};
+function demoAssetUrl(id) {
+  const ext = DEMO_ASSET_EXT[id];
+  return ext ? `assets/${id}.${ext}` : '';
+}
+
 function buildDemoLibrary(tagByName) {
   const createdAt = isoDaysAgo(21);
-  const items = DEMO_RAW_ITEMS.map((raw) => ({
-    id: slugId('item', raw.name),
-    name: raw.name,
-    kcal: raw.kcal,
-    protein: raw.protein,
-    fat: raw.fat,
-    carbs: raw.carbs,
-    tagIds: raw.tags.map((t) => tagByName.get(t).id),
-    wholeG: raw.wholeG || 100,
-    favourite: false,
-    imageUrl: '',
-    createdAt,
-  }));
+  const items = DEMO_RAW_ITEMS.map((raw) => {
+    const id = slugId('item', raw.name);
+    return {
+      id,
+      name: raw.name,
+      kcal: raw.kcal,
+      protein: raw.protein,
+      fat: raw.fat,
+      carbs: raw.carbs,
+      tagIds: raw.tags.map((t) => tagByName.get(t).id),
+      wholeG: raw.wholeG || 100,
+      favourite: false,
+      imageUrl: demoAssetUrl(id),
+      createdAt,
+    };
+  });
   const itemByName = new Map(items.map((it) => [it.name, it]));
-  const recipes = DEMO_RAW_RECIPES.map((raw) => ({
-    id: slugId('recipe', raw.name),
-    name: raw.name,
-    ingredients: raw.ingredients.map(([itemName, grams]) => ({ itemId: itemByName.get(itemName).id, grams })),
-    tagIds: raw.tags.map((t) => tagByName.get(t).id),
-    favourite: false,
-    imageUrl: '',
-    createdAt,
-  }));
+  const recipes = DEMO_RAW_RECIPES.map((raw) => {
+    const id = slugId('recipe', raw.name);
+    return {
+      id,
+      name: raw.name,
+      ingredients: raw.ingredients.map(([itemName, grams]) => ({ itemId: itemByName.get(itemName).id, grams })),
+      tagIds: raw.tags.map((t) => tagByName.get(t).id),
+      favourite: false,
+      imageUrl: demoAssetUrl(id),
+      createdAt,
+    };
+  });
   return { items, recipes };
 }
 

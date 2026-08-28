@@ -53,7 +53,7 @@ export default async function handler(req, res) {
     ({ zodOutputFormat } = await import('@anthropic-ai/sdk/helpers/zod'));
   } catch (err) {
     console.error('scan-label: failed to load dependencies — check the Vercel deployment installed @anthropic-ai/sdk and zod', err);
-    res.status(500).json({ ok: false, reason: 'server-error' });
+    res.status(500).json({ ok: false, reason: 'server-error', stage: 'import', detail: String(err && err.message || err) });
     return;
   }
 
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
     client = new Anthropic();
   } catch (err) {
     console.error('scan-label: could not create Anthropic client — check ANTHROPIC_API_KEY is set in Vercel project env vars', err.message);
-    res.status(500).json({ ok: false, reason: 'server-error' });
+    res.status(500).json({ ok: false, reason: 'server-error', stage: 'client-construction', detail: String(err && err.message || err) });
     return;
   }
 
@@ -100,17 +100,22 @@ export default async function handler(req, res) {
 
     res.status(200).json({ ok: true, kcal: parsed.kcal, protein: parsed.protein, carbs: parsed.carbs, fat: parsed.fat });
   } catch (err) {
+    let stage = 'unexpected';
     if (err instanceof Anthropic.AuthenticationError) {
+      stage = 'authentication';
       console.error('scan-label: authentication error — check ANTHROPIC_API_KEY', err.message);
     } else if (err instanceof Anthropic.RateLimitError) {
+      stage = 'rate-limit';
       console.error('scan-label: rate limited', err.message);
     } else if (err instanceof Anthropic.APIStatusError) {
+      stage = 'api-status';
       console.error('scan-label: API error', err.status, err.message);
     } else if (err instanceof Anthropic.APIConnectionError) {
+      stage = 'connection';
       console.error('scan-label: connection error', err.message);
     } else {
       console.error('scan-label: unexpected error', err);
     }
-    res.status(500).json({ ok: false, reason: 'server-error' });
+    res.status(500).json({ ok: false, reason: 'server-error', stage, detail: String(err && err.message || err) });
   }
 }

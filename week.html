@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <style>
-  .wk-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+  .wk-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; align-items: start; }
   @media (max-width: 720px) { .wk-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
   .wk-meal .wk-actions { opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
   .wk-meal:hover .wk-actions { opacity: 1; pointer-events: auto; }

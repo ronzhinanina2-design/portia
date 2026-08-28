@@ -2,6 +2,13 @@
 
 let GOAL_KCAL_WK = Data.getGoals().calorieTarget;
 let GOAL_PROTEIN_WK = Data.getGoals().proteinTarget;
+// Data.ready() resolves after data.js's own initial pull-merge-push cycle,
+// which captures its cache snapshot at module load and can overwrite any
+// write made before it resolves (the merge baseline predates that write).
+// First-time shopping-list generation runs unconditionally on every page
+// load's first paint, so it's gated on this flag to avoid racing that
+// initial sync and having the just-generated list silently discarded.
+let dataReadyWk = false;
 const SLOT_META_WK = [
   ['breakfast', 'Breakfast'],
   ['lunch', 'Lunch'],
@@ -280,12 +287,15 @@ function buildAutoShopItemsWk(mon) {
 // and checked state) without silently overwriting it on every render.
 // Returns null when nothing's planned yet and no list has been started —
 // the card renders an empty state in that case instead of a persisted no-op.
+// Before dataReadyWk, returns a computed-but-unpersisted preview instead of
+// writing — see the dataReadyWk comment above for why.
 function ensureShopListWk(mon) {
   const key = shopWeekKeyWk(mon);
   const existing = Data.getShoppingList(key);
   if (existing) return existing;
   const auto = buildAutoShopItemsWk(mon);
   if (auto.length === 0) return null;
+  if (!dataReadyWk) return { items: auto, generatedAt: null };
   return Data.setShoppingList(key, { items: auto, generatedAt: new Date().toISOString() });
 }
 
@@ -1277,5 +1287,6 @@ renderWeek();
 Data.ready().then(() => {
   GOAL_KCAL_WK = Data.getGoals().calorieTarget;
   GOAL_PROTEIN_WK = Data.getGoals().proteinTarget;
+  dataReadyWk = true;
   renderWeek();
 });

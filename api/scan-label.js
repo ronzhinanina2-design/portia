@@ -1,17 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { z } from 'zod';
-import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-
-const client = new Anthropic();
-
-const LabelMacros = z.object({
-  readable: z.boolean(),
-  kcal: z.number().nullable(),
-  protein: z.number().nullable(),
-  carbs: z.number().nullable(),
-  fat: z.number().nullable(),
-});
-
 const PROMPT = `You are reading a nutrition facts label from a photo for a food-tracking app. Extract ONLY total calories, protein, carbohydrates, and fat, expressed per 100g (or per 100ml for liquids) of the food.
 
 Rules:
@@ -29,6 +15,15 @@ function setCors(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
+// The @anthropic-ai/sdk and zod imports happen inside the handler, at request
+// time, rather than at module top level. If anything about them fails —
+// package not installed, missing ANTHROPIC_API_KEY (the SDK client throws on
+// construction with no key), a bad import path — the whole module would
+// otherwise fail to load and Vercel would return a bare, header-less crash
+// page for every request (including the CORS preflight), which is exactly
+// what shows up in the browser as a misleading "no CORS header" error.
+// Importing lazily inside the try/catch below guarantees setCors() has
+// already run and every failure mode still comes back as real JSON.
 export default async function handler(req, res) {
   setCors(res);
 
@@ -50,6 +45,34 @@ export default async function handler(req, res) {
     res.status(400).json({ ok: false, reason: 'bad-request' });
     return;
   }
+
+  let Anthropic, z, zodOutputFormat;
+  try {
+    ({ default: Anthropic } = await import('@anthropic-ai/sdk'));
+    ({ z } = await import('zod'));
+    ({ zodOutputFormat } = await import('@anthropic-ai/sdk/helpers/zod'));
+  } catch (err) {
+    console.error('scan-label: failed to load dependencies — check the Vercel deployment installed @anthropic-ai/sdk and zod', err);
+    res.status(500).json({ ok: false, reason: 'server-error' });
+    return;
+  }
+
+  let client;
+  try {
+    client = new Anthropic();
+  } catch (err) {
+    console.error('scan-label: could not create Anthropic client — check ANTHROPIC_API_KEY is set in Vercel project env vars', err.message);
+    res.status(500).json({ ok: false, reason: 'server-error' });
+    return;
+  }
+
+  const LabelMacros = z.object({
+    readable: z.boolean(),
+    kcal: z.number().nullable(),
+    protein: z.number().nullable(),
+    carbs: z.number().nullable(),
+    fat: z.number().nullable(),
+  });
 
   try {
     const response = await client.messages.parse({

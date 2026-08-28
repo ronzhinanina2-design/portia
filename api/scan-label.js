@@ -1,3 +1,13 @@
+// Talks to the Claude Messages API directly over fetch rather than through
+// @anthropic-ai/sdk. The SDK's dependency graph pulls in a webhook-signature
+// helper (`standardwebhooks`) that CommonJS-requires an ESM-only package
+// (`@stablelib/base64`) — Node can't do that, and it crashes the whole
+// module on import under Vercel's runtime (FUNCTION_INVOCATION_FAILED on
+// every request, including the CORS preflight). This one call is simple
+// enough that the plain REST API avoids the whole dependency chain.
+const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_VERSION = '2023-06-01';
+
 const PROMPT = `You are reading a nutrition facts label from a photo for a food-tracking app. Extract ONLY total calories, protein, carbohydrates, and fat, expressed per 100g (or per 100ml for liquids) of the food.
 
 Rules:
@@ -7,7 +17,8 @@ Rules:
 - Round calories to the nearest whole number, and protein/carbs/fat to one decimal place.
 - Set "readable" to true only if you are confident in all four numbers. If the photo is blurry, cropped, doesn't show a nutrition label, or is missing what you'd need to compute per-100g values, set "readable" to false and leave the four numeric fields null.
 
-Respond with structured data only — no explanation.`;
+Respond with ONLY a single JSON object, no markdown code fences, no explanation, no other text — exactly this shape:
+{"readable": boolean, "kcal": number|null, "protein": number|null, "carbs": number|null, "fat": number|null}`;
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,15 +26,23 @@ function setCors(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-// The @anthropic-ai/sdk and zod imports happen inside the handler, at request
-// time, rather than at module top level. If anything about them fails —
-// package not installed, missing ANTHROPIC_API_KEY (the SDK client throws on
-// construction with no key), a bad import path — the whole module would
-// otherwise fail to load and Vercel would return a bare, header-less crash
-// page for every request (including the CORS preflight), which is exactly
-// what shows up in the browser as a misleading "no CORS header" error.
-// Importing lazily inside the try/catch below guarantees setCors() has
-// already run and every failure mode still comes back as real JSON.
+function parseLabelMacros(text) {
+  // Strip a markdown fence if the model adds one despite instructions not to.
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.readable !== 'boolean') return null;
+  const nums = ['kcal', 'protein', 'carbs', 'fat'];
+  for (const key of nums) {
+    if (parsed[key] !== null && typeof parsed[key] !== 'number') return null;
+  }
+  return parsed;
+}
+
 export default async function handler(req, res) {
   setCors(res);
 
@@ -46,53 +65,47 @@ export default async function handler(req, res) {
     return;
   }
 
-  let Anthropic, z, zodOutputFormat;
-  try {
-    ({ default: Anthropic } = await import('@anthropic-ai/sdk'));
-    ({ z } = await import('zod'));
-    ({ zodOutputFormat } = await import('@anthropic-ai/sdk/helpers/zod'));
-  } catch (err) {
-    console.error('scan-label: failed to load dependencies — check the Vercel deployment installed @anthropic-ai/sdk and zod', err);
-    res.status(500).json({ ok: false, reason: 'server-error', stage: 'import', detail: String(err && err.message || err) });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.error('scan-label: ANTHROPIC_API_KEY is not set in this deployment\'s environment variables');
+    res.status(500).json({ ok: false, reason: 'server-error', stage: 'missing-key' });
     return;
   }
 
-  let client;
   try {
-    client = new Anthropic();
-  } catch (err) {
-    console.error('scan-label: could not create Anthropic client — check ANTHROPIC_API_KEY is set in Vercel project env vars', err.message);
-    res.status(500).json({ ok: false, reason: 'server-error', stage: 'client-construction', detail: String(err && err.message || err) });
-    return;
-  }
-
-  const LabelMacros = z.object({
-    readable: z.boolean(),
-    kcal: z.number().nullable(),
-    protein: z.number().nullable(),
-    carbs: z.number().nullable(),
-    fat: z.number().nullable(),
-  });
-
-  try {
-    const response = await client.messages.parse({
-      model: 'claude-haiku-4-5',
-      max_tokens: 1024,
-      output_config: {
-        format: zodOutputFormat(LabelMacros),
+    const apiRes = await fetch(ANTHROPIC_API_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
       },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
-            { type: 'text', text: PROMPT },
-          ],
-        },
-      ],
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+              { type: 'text', text: PROMPT },
+            ],
+          },
+        ],
+      }),
     });
 
-    const parsed = response.parsed_output;
+    const payload = await apiRes.json();
+
+    if (!apiRes.ok) {
+      console.error('scan-label: Claude API error', apiRes.status, payload && payload.error);
+      res.status(500).json({ ok: false, reason: 'server-error', stage: 'api-error', detail: `${apiRes.status} ${payload && payload.error && payload.error.message}` });
+      return;
+    }
+
+    const textBlock = (payload.content || []).find((b) => b.type === 'text');
+    const parsed = textBlock && parseLabelMacros(textBlock.text);
+
     if (!parsed || !parsed.readable || parsed.kcal == null || parsed.protein == null || parsed.carbs == null || parsed.fat == null) {
       res.status(200).json({ ok: false, reason: 'unreadable' });
       return;
@@ -100,22 +113,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({ ok: true, kcal: parsed.kcal, protein: parsed.protein, carbs: parsed.carbs, fat: parsed.fat });
   } catch (err) {
-    let stage = 'unexpected';
-    if (err instanceof Anthropic.AuthenticationError) {
-      stage = 'authentication';
-      console.error('scan-label: authentication error — check ANTHROPIC_API_KEY', err.message);
-    } else if (err instanceof Anthropic.RateLimitError) {
-      stage = 'rate-limit';
-      console.error('scan-label: rate limited', err.message);
-    } else if (err instanceof Anthropic.APIStatusError) {
-      stage = 'api-status';
-      console.error('scan-label: API error', err.status, err.message);
-    } else if (err instanceof Anthropic.APIConnectionError) {
-      stage = 'connection';
-      console.error('scan-label: connection error', err.message);
-    } else {
-      console.error('scan-label: unexpected error', err);
-    }
-    res.status(500).json({ ok: false, reason: 'server-error', stage, detail: String(err && err.message || err) });
+    console.error('scan-label: unexpected error', err);
+    res.status(500).json({ ok: false, reason: 'server-error', stage: 'unexpected', detail: String((err && err.message) || err) });
   }
 }

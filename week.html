@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Portia — Week</title>
 <script src="auth.js"></script>
@@ -14,6 +18,8 @@
   @media (max-width: 720px) { .wk-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
   .wk-meal .wk-actions { opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
   .wk-meal:hover .wk-actions { opacity: 1; pointer-events: auto; }
+  .shop-row .shop-row-x { opacity: 0; pointer-events: none; transition: opacity 0.15s ease, color 150ms ease, transform 80ms ease; }
+  .shop-row:hover .shop-row-x { opacity: 1; pointer-events: auto; }
 </style>
 </head>
 <body>

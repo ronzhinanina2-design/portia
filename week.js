@@ -1,6 +1,7 @@
 /* ============ Portia — Week tab ============ */
 
 let GOAL_KCAL_WK = Data.getGoals().calorieTarget;
+let GOAL_PROTEIN_WK = Data.getGoals().proteinTarget;
 const SLOT_META_WK = [
   ['breakfast', 'Breakfast'],
   ['lunch', 'Lunch'],
@@ -63,6 +64,8 @@ const wkState = {
   activeTags: [],
   selected: {},
   order: [],
+  confirmRegenerate: false,
+  shopAddText: '',
 };
 
 function setWkState(patch) {
@@ -163,6 +166,165 @@ function consumedForDate(meals) {
     if (sm) c += sm.kcal;
   });
   return c;
+}
+function plannedTotalsForDate(meals) {
+  let kcal = 0, protein = 0;
+  SLOT_META_WK.forEach(([sk]) => {
+    const sm = summarizeEntries(meals[sk]);
+    if (sm) { kcal += sm.kcal; protein += sm.protein; }
+  });
+  return { kcal, protein };
+}
+
+/* ============ Shopping list ============ */
+// One auto-generated list per week, keyed by that week's Monday (dateKey).
+// Portia's structured ingredient data is always in grams (see recipeTotalsWk),
+// so there's no "2 onions vs 300g onions" unit mismatch to reconcile — every
+// occurrence of the same library item across the week's plan sums cleanly.
+
+const SHOP_CATEGORY_ORDER = ['Produce', 'Meat', 'Fish & Seafood', 'Dairy & Eggs', 'Grains & Bakery', 'Pantry', 'Frozen', 'Snacks', 'Other'];
+
+// Tags carry the most reliable signal when an item already has one of these
+// (they're part of Portia's default tag vocabulary — see data.js), so they're
+// checked first; keyword-matching on the name is the v1 fallback for
+// everything else (notably produce, which has no dedicated "Vegetable" tag).
+const SHOP_TAG_CATEGORY = { meat: 'Meat', fish: 'Fish & Seafood', dairy: 'Dairy & Eggs', grains: 'Grains & Bakery', fruit: 'Produce', snack: 'Snacks' };
+
+const SHOP_KEYWORD_CATEGORY = [
+  ['Produce', ['onion', 'garlic', 'tomato', 'potato', 'carrot', 'pepper', 'cucumber', 'lettuce', 'spinach', 'kale', 'broccoli', 'cauliflower', 'courgette', 'zucchini', 'mushroom', 'avocado', 'lemon', 'lime', 'apple', 'banana', 'berry', 'berries', 'grape', 'orange', 'pear', 'peach', 'celery', 'leek', 'parsley', 'coriander', 'cilantro', 'basil', 'mint', 'ginger', 'chilli', 'chili', 'aubergine', 'eggplant', 'squash', 'pumpkin', 'beetroot', 'radish', 'sprout', 'cabbage', 'herbs', 'vegetable', 'salad']],
+  ['Meat', ['chicken', 'beef', 'pork', 'lamb', 'turkey', 'bacon', 'sausage', 'mince', 'steak', 'ham']],
+  ['Fish & Seafood', ['salmon', 'tuna', 'fish', 'prawn', 'shrimp', 'cod', 'haddock', 'mackerel', 'crab', 'mussel', 'anchovy']],
+  ['Dairy & Eggs', ['milk', 'cheese', 'yoghurt', 'yogurt', 'butter', 'cream', 'egg']],
+  ['Grains & Bakery', ['bread', 'rice', 'pasta', 'oat', 'flour', 'cereal', 'tortilla', 'bagel', 'noodle', 'quinoa', 'couscous', 'bun', 'roll']],
+  ['Pantry', ['oil', 'vinegar', 'sauce', 'spice', 'salt', 'sugar', 'honey', 'stock', 'broth', 'tin ', 'canned', 'bean', 'lentil', 'chickpea', 'nut', 'seed', 'jam', 'syrup', 'paste']],
+  ['Frozen', ['frozen']],
+  ['Snacks', ['chip', 'crisp', 'chocolate', 'biscuit', 'cracker', 'popcorn']],
+];
+
+function categoryForIngredientWk(name, tagIds) {
+  for (const tid of (tagIds || [])) {
+    const tag = Data.getTagById(tid);
+    if (!tag) continue;
+    const mapped = SHOP_TAG_CATEGORY[tag.name.trim().toLowerCase()];
+    if (mapped) return mapped;
+  }
+  const lower = name.toLowerCase();
+  for (const [cat, words] of SHOP_KEYWORD_CATEGORY) {
+    if (words.some((w) => lower.includes(w))) return cat;
+  }
+  return 'Other';
+}
+
+function fmtGramsWk(g) {
+  if (g == null) return '';
+  if (g >= 1000) return `${(g / 1000).toFixed(g % 1000 === 0 ? 0 : 1)}kg`;
+  return `${Math.round(g)}g`;
+}
+
+function uidShopWk() {
+  return `shop-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function shopWeekKeyWk(mon) {
+  return dateKey(mon);
+}
+
+// Walks the week's planned meals (same base-slot logs the day cards read —
+// see plannedTotalsForDate) and expands each entry into its ingredients:
+// a recipe entry is scaled by how much of its batch was actually planned
+// (entry.grams / recipe's total batch grams), a plain item entry is added
+// directly. Same itemId across the week (whether from a recipe or logged
+// straight) merges into one summed line.
+function buildAutoShopItemsWk(mon) {
+  const totals = new Map();
+  for (let i = 0; i < 7; i++) {
+    const meals = mealsForDate(dateKey(addDays(mon, i)));
+    SLOT_META_WK.forEach(([sk]) => {
+      const log = meals[sk];
+      if (!log) return;
+      log.entries.forEach((entry) => {
+        const recipe = Data.getRecipeById(entry.itemId);
+        if (recipe) {
+          const rt = recipeTotalsWk(recipe);
+          if (rt.grams > 0) {
+            const scale = entry.grams / rt.grams;
+            (recipe.ingredients || []).forEach((ing) => {
+              if (!Data.getItemById(ing.itemId)) return;
+              totals.set(ing.itemId, (totals.get(ing.itemId) || 0) + ing.grams * scale);
+            });
+          }
+        } else if (Data.getItemById(entry.itemId)) {
+          totals.set(entry.itemId, (totals.get(entry.itemId) || 0) + entry.grams);
+        }
+      });
+    });
+  }
+  const out = [];
+  totals.forEach((grams, itemId) => {
+    const it = Data.getItemById(itemId);
+    out.push({
+      id: uidShopWk(),
+      itemId,
+      name: it.name,
+      category: categoryForIngredientWk(it.name, it.tagIds),
+      grams: Math.round(grams),
+      checked: false,
+      manual: false,
+    });
+  });
+  return out;
+}
+
+// Auto-generates and persists the list the first time a week is viewed;
+// after that, returns whatever's already stored (including manual additions
+// and checked state) without silently overwriting it on every render.
+// Returns null when nothing's planned yet and no list has been started —
+// the card renders an empty state in that case instead of a persisted no-op.
+function ensureShopListWk(mon) {
+  const key = shopWeekKeyWk(mon);
+  const existing = Data.getShoppingList(key);
+  if (existing) return existing;
+  const auto = buildAutoShopItemsWk(mon);
+  if (auto.length === 0) return null;
+  return Data.setShoppingList(key, { items: auto, generatedAt: new Date().toISOString() });
+}
+
+function regenerateShopListWk() {
+  const mon = mondayOf(wkState.weekOffset);
+  const key = shopWeekKeyWk(mon);
+  const auto = buildAutoShopItemsWk(mon);
+  if (auto.length === 0) Data.clearShoppingList(key);
+  else Data.setShoppingList(key, { items: auto, generatedAt: new Date().toISOString() });
+  setWkState({ confirmRegenerate: false });
+}
+
+function toggleShopItemWk(id) {
+  const key = shopWeekKeyWk(mondayOf(wkState.weekOffset));
+  Data.toggleShoppingListItem(key, id);
+  renderWeek();
+}
+
+function removeShopItemWk(id) {
+  const key = shopWeekKeyWk(mondayOf(wkState.weekOffset));
+  Data.removeShoppingListItem(key, id);
+  renderWeek();
+}
+
+function addManualShopItemWk() {
+  const name = wkState.shopAddText.trim();
+  if (!name) return;
+  const key = shopWeekKeyWk(mondayOf(wkState.weekOffset));
+  Data.addShoppingListItem(key, {
+    id: uidShopWk(),
+    itemId: null,
+    name,
+    category: 'Other',
+    grams: null,
+    checked: false,
+    manual: true,
+  });
+  wkState.shopAddText = '';
+  renderWeek();
 }
 
 function escapeHtmlWk(str) {
@@ -519,9 +681,8 @@ function renderDayCard(k, d) {
   const editable = st === 'future';
   const isToday = st === 'today';
   const todayLocked = isToday && isDateLockedWk(k);
-  const con = consumedForDate(meals);
-  const hasKcal = st === 'past' || st === 'today';
-  const star = (st === 'past' || todayLocked) && con <= GOAL_KCAL_WK;
+  const planned = plannedTotalsForDate(meals);
+  const star = (st === 'past' || todayLocked) && planned.kcal <= GOAL_KCAL_WK;
 
   const cardBg = isToday ? 'background:#2A3A4A; border:1px solid #34465A;' : 'background:#1C2733; border:1px solid #2A3A4A;';
   const numColor = isToday ? '#2ABFAD' : '#E8EDF2';
@@ -595,8 +756,106 @@ function renderDayCard(k, d) {
           ${isToday ? '<span style="font-size:10px; font-weight:600; letter-spacing:0.04em; color:#2ABFAD; background:rgba(42,191,173,0.13); padding:3px 7px; border-radius:6px;">TODAY</span>' : ''}
         </div>
       </div>
-      ${hasKcal ? `<div style="font-size:11px; color:#8B9BAD; margin-top:-6px; margin-bottom:11px;">${fmtWk(con)} / ${fmtWk(GOAL_KCAL_WK)} kcal</div>` : ''}
+      <div style="font-size:11px; color:#8B9BAD; margin-top:-6px; margin-bottom:11px;">${fmtWk(planned.kcal)} / ${fmtWk(GOAL_KCAL_WK)} kcal &middot; ${fmtWk(planned.protein)} / ${fmtWk(GOAL_PROTEIN_WK)}g protein</div>
       <div style="display:flex; flex-direction:column; gap:6px;">${slotsHtml}</div>
+    </div>
+  `;
+}
+
+function groupShopItemsWk(items) {
+  const byCat = new Map();
+  items.forEach((it) => {
+    if (!byCat.has(it.category)) byCat.set(it.category, []);
+    byCat.get(it.category).push(it);
+  });
+  return SHOP_CATEGORY_ORDER
+    .filter((cat) => byCat.has(cat))
+    .map((cat) => [cat, byCat.get(cat)]);
+}
+
+function renderShopRowWk(it) {
+  const checkStyle = it.checked
+    ? 'width:20px; height:20px; border-radius:6px; flex-shrink:0; border:1.5px solid #2ABFAD; background:#2ABFAD; display:flex; align-items:center; justify-content:center;'
+    : 'width:20px; height:20px; border-radius:6px; flex-shrink:0; border:1.5px solid #2ABFAD; background:transparent; display:flex; align-items:center; justify-content:center;';
+  const checkIcon = it.checked
+    ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#141B24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>'
+    : '';
+  const nameColor = it.checked ? '#5C6B7A' : '#E8EDF2';
+  const nameDecoration = it.checked ? 'line-through' : 'none';
+  const gramsHtml = it.grams != null ? `<span style="font-size:12px; color:#8B9BAD; flex-shrink:0;">${fmtGramsWk(it.grams)}</span>` : '';
+  return `
+    <div class="shop-row" style="display:flex; align-items:center; gap:10px; padding:6px 2px;">
+      <div data-action="toggle-shop-item" data-id="${it.id}" style="${checkStyle} cursor:pointer;">${checkIcon}</div>
+      <div data-action="toggle-shop-item" data-id="${it.id}" style="flex:1; min-width:0; font-size:13.5px; font-weight:500; color:${nameColor}; text-decoration:${nameDecoration}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;">${escapeHtmlWk(it.name)}</div>
+      ${gramsHtml}
+      <div class="shop-row-x icon-btn" data-action="remove-shop-item" data-id="${it.id}" style="width:20px; height:20px; flex-shrink:0;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+      </div>
+    </div>
+  `;
+}
+
+function renderShopCardWk(mon) {
+  const list = ensureShopListWk(mon);
+  const groups = list ? groupShopItemsWk(list.items) : [];
+
+  const headerHtml = `
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:${list ? '14px' : '16px'};">
+      <div style="display:flex; align-items:center; gap:9px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2ABFAD" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h15l-1.5 9h-12z"></path><path d="M6 6L5 3H2"></path><circle cx="9" cy="20" r="1.4" fill="#2ABFAD" stroke="none"></circle><circle cx="18" cy="20" r="1.4" fill="#2ABFAD" stroke="none"></circle></svg>
+        <span style="font-size:15px; font-weight:500; color:#E8EDF2;">Shopping list</span>
+      </div>
+      ${list ? `
+        <div data-action="request-regenerate-shop" class="icon-btn" title="Regenerate list" style="width:26px; height:26px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"></path><path d="M3 21v-5h5"></path></svg>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  const bodyHtml = list
+    ? groups.map(([cat, items]) => `
+        <div style="margin-bottom:14px;">
+          <div class="section-label" style="font-size:10.5px; margin-bottom:4px;">${escapeHtmlWk(cat)}</div>
+          ${items.map(renderShopRowWk).join('')}
+        </div>
+      `).join('')
+    : `
+      <div style="padding:10px 0 18px; text-align:center;">
+        <span style="font-size:12.5px; color:#5C6B7A; line-height:1.5;">Plan some meals this week to generate a shopping list.</span>
+      </div>
+    `;
+
+  const addRowHtml = `
+    <div style="display:flex; align-items:center; gap:8px; border-top:1px solid rgba(42,191,173,0.18); padding-top:12px; margin-top:${list && groups.length ? '2px' : '0'};">
+      <input id="shop-add-input-wk" class="input no-transitions" placeholder="Add item…" value="${escapeHtmlWk(wkState.shopAddText)}" style="flex:1; padding:9px 12px; font-size:13px; background:#1C2733;">
+      <div data-action="add-shop-item" class="icon-btn" title="Add item" style="width:32px; height:32px; border-radius:9px; border:1px solid #2ABFAD; color:#2ABFAD; flex-shrink:0;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+      </div>
+    </div>
+  `;
+
+  return `
+    <div style="border-radius:16px; padding:16px 15px; background:rgba(42,191,173,0.06); border:1.5px solid rgba(42,191,173,0.35); display:flex; flex-direction:column;">
+      ${headerHtml}
+      <div>${bodyHtml}</div>
+      ${addRowHtml}
+    </div>
+  `;
+}
+
+function renderConfirmRegenerateWk() {
+  if (!wkState.confirmRegenerate) return '';
+  return `
+    <div class="modal-overlay" style="z-index:80;">
+      <div style="width:100%; max-width:420px; background:#1C2733; border:1px solid #2A3A4A; border-radius:18px; padding:26px; box-shadow:0 30px 80px rgba(0,0,0,0.55);">
+        <div style="font-size:18px; font-weight:600; color:#E8EDF2; margin-bottom:10px;">Regenerate shopping list?</div>
+        <div style="font-size:14px; color:#8B9BAD; line-height:1.55; margin-bottom:24px;">This rebuilds the list from this week's current meal plan. Any manual items and checked-off progress will be lost.</div>
+        <div style="display:flex; gap:10px;">
+          <button data-action="cancel-regenerate-shop" class="btn-ghost" style="flex:1;">Cancel</button>
+          <button data-action="confirm-regenerate-shop" class="btn-confirm-delete" style="flex:1;">Regenerate</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -607,7 +866,7 @@ function renderWeekGrid() {
     const d = addDays(mon, i);
     return renderDayCard(dateKey(d), d);
   }).join('');
-  return `<div class="wk-grid">${cards}</div>`;
+  return `<div class="wk-grid">${cards}${renderShopCardWk(mon)}</div>`;
 }
 
 function renderMonthGrid() {
@@ -905,6 +1164,7 @@ function renderWeek() {
         ${wkState.view === 'week' ? renderWeekGrid() : renderMonthGrid()}
       </div>
       ${renderModalWk()}
+      ${renderConfirmRegenerateWk()}
     </div>
   `;
 
@@ -944,13 +1204,13 @@ let pendingFocusWk = null;
 
 function captureFocusWk() {
   const el = document.activeElement;
-  if (!el || (el.id !== 'search-input-wk' && !el.classList.contains('custom-g-input-wk'))) return null;
+  if (!el || (el.id !== 'search-input-wk' && el.id !== 'shop-add-input-wk' && !el.classList.contains('custom-g-input-wk'))) return null;
   return { id: el.id, cls: el.classList.contains('custom-g-input-wk'), dataId: el.dataset.id, selStart: el.selectionStart, selEnd: el.selectionEnd };
 }
 function restoreFocusWk(info) {
   if (!info) return;
   let el = null;
-  if (info.id === 'search-input-wk') el = document.getElementById('search-input-wk');
+  if (info.id === 'search-input-wk' || info.id === 'shop-add-input-wk') el = document.getElementById(info.id);
   else if (info.cls) el = document.querySelector(`.custom-g-input-wk[data-id="${info.dataId}"]`);
   if (el) {
     el.focus();
@@ -985,6 +1245,12 @@ document.addEventListener('click', (e) => {
     case 'back-step': gotoStep1Wk(); break;
     case 'goto-step2': gotoStep2Wk(); break;
     case 'save-plan': if (!target.disabled) savePlan(); break;
+    case 'toggle-shop-item': toggleShopItemWk(id); break;
+    case 'remove-shop-item': removeShopItemWk(id); break;
+    case 'add-shop-item': addManualShopItemWk(); break;
+    case 'request-regenerate-shop': setWkState({ confirmRegenerate: true }); break;
+    case 'cancel-regenerate-shop': setWkState({ confirmRegenerate: false }); break;
+    case 'confirm-regenerate-shop': regenerateShopListWk(); break;
   }
 });
 
@@ -992,13 +1258,24 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'search-input-wk') {
     wkState.search = e.target.value;
     renderWeek();
+  } else if (e.target.id === 'shop-add-input-wk') {
+    wkState.shopAddText = e.target.value;
+    renderWeek();
   } else if (e.target.classList.contains('custom-g-input-wk')) {
     setCustomGWk(e.target.dataset.id, e.target.value);
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.id === 'shop-add-input-wk' && e.key === 'Enter') {
+    e.preventDefault();
+    addManualShopItemWk();
   }
 });
 
 renderWeek();
 Data.ready().then(() => {
   GOAL_KCAL_WK = Data.getGoals().calorieTarget;
+  GOAL_PROTEIN_WK = Data.getGoals().proteinTarget;
   renderWeek();
 });

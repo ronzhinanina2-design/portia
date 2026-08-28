@@ -1,0 +1,10 @@
+{
+  "name": "portia-label-scan-api",
+  "private": true,
+  "type": "module",
+  "description": "Serverless function that powers Portia's AI label scan feature. The rest of Portia is a static site with no build step — this package.json exists only so Vercel can install dependencies for the /api function.",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
+    "zod": "^3.24.0"
+  }
+}

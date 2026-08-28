@@ -72,17 +72,18 @@ function closePanelRc() {
 }
 
 function blankItemDraft() {
-  return { name: '', kcal: '', protein: '', fat: '', carbs: '', tagIds: [], addingTag: false, newTag: '', imageUrl: null };
+  return { name: '', kcal: '', protein: '', fat: '', carbs: '', tagIds: [], addingTag: false, newTag: '', imageUrl: null, labelScan: { status: 'idle', message: '' } };
 }
 function blankRecipeDraft() {
   return { name: '', ingredients: [], tagIds: [], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: null, notes: '', notesEditing: false, notesDraft: '' };
 }
+let rcPanelTokenSeq = 0;
 function openForm(type, id) {
   let draft;
   if (type === 'item') {
     if (id) {
       const it = itemByIdRc(id);
-      draft = { name: it.name, kcal: String(it.kcal), protein: String(it.protein), fat: String(it.fat), carbs: String(it.carbs), tagIds: [...(it.tagIds || [])], addingTag: false, newTag: '', imageUrl: it.imageUrl || null };
+      draft = { name: it.name, kcal: String(it.kcal), protein: String(it.protein), fat: String(it.fat), carbs: String(it.carbs), tagIds: [...(it.tagIds || [])], addingTag: false, newTag: '', imageUrl: it.imageUrl || null, labelScan: { status: 'idle', message: '' } };
     } else draft = blankItemDraft();
   } else {
     if (id) {
@@ -90,7 +91,7 @@ function openForm(type, id) {
       draft = { name: r.name, ingredients: r.ingredients.map((i) => ({ ...i })), tagIds: [...(r.tagIds || [])], ingSearch: '', addingTag: false, newTag: '', replacing: null, imageUrl: r.imageUrl || null, notes: r.notes || '', notesEditing: false, notesDraft: '' };
     } else draft = blankRecipeDraft();
   }
-  setRcState({ panel: { mode: 'form', type, id, draft } });
+  setRcState({ panel: { mode: 'form', type, id, draft, token: ++rcPanelTokenSeq } });
 }
 function patchDraft(patch) {
   setRcState((s) => ({ panel: { ...s.panel, draft: { ...s.panel.draft, ...patch } } }));
@@ -255,6 +256,124 @@ function removeCardPhoto(type, id) {
   if (type === 'item') Data.updateItem(id, { imageUrl: null });
   else Data.updateRecipe(id, { imageUrl: null });
   renderRecipes();
+}
+
+/* ============ AI label scan ============ */
+
+const LABEL_SCAN_API_URL = 'https://portia-rouge.vercel.app/api/scan-label';
+
+const LABEL_SCAN_MAX_DIMENSION = 1600;
+const LABEL_SCAN_JPEG_QUALITY = 0.88;
+const LABEL_SCAN_MAX_SOURCE_BYTES = 20 * 1024 * 1024;
+
+function triggerLabelScan() {
+  const input = document.getElementById('rc-label-scan-input');
+  if (input) { input.value = ''; input.click(); }
+}
+
+// Higher-res than the stored-photo compressor (compressImageFile above) since
+// this copy is only ever sent once for OCR and then discarded — legibility
+// matters more than payload size here.
+function compressImageForScan(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read-failed'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('decode-failed'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > LABEL_SCAN_MAX_DIMENSION || height > LABEL_SCAN_MAX_DIMENSION) {
+          if (width >= height) {
+            height = Math.round((height / width) * LABEL_SCAN_MAX_DIMENSION);
+            width = LABEL_SCAN_MAX_DIMENSION;
+          } else {
+            width = Math.round((width / height) * LABEL_SCAN_MAX_DIMENSION);
+            height = LABEL_SCAN_MAX_DIMENSION;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', LABEL_SCAN_JPEG_QUALITY));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Guards against a slow response landing after the user has closed or
+// switched forms — only applies if the panel that started the scan is still open.
+function setLabelScanState(panelToken, patch) {
+  setRcState((s) => {
+    if (!s.panel || s.panel.token !== panelToken) return {};
+    return { panel: { ...s.panel, draft: { ...s.panel.draft, labelScan: { ...s.panel.draft.labelScan, ...patch } } } };
+  });
+}
+
+async function handleLabelScanFile(file) {
+  if (!rcState.panel || rcState.panel.mode !== 'form' || rcState.panel.type !== 'item') return;
+  const panelToken = rcState.panel.token;
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    setLabelScanState(panelToken, { status: 'error', message: 'Please choose an image file (JPEG, PNG, HEIC, etc).' });
+    return;
+  }
+  if (file.size > LABEL_SCAN_MAX_SOURCE_BYTES) {
+    setLabelScanState(panelToken, { status: 'error', message: 'That photo is too large. Please choose a file under 20MB.' });
+    return;
+  }
+  if (!LABEL_SCAN_API_URL) {
+    setLabelScanState(panelToken, { status: 'error', message: "Label scan isn't set up yet — see setup instructions." });
+    return;
+  }
+
+  setLabelScanState(panelToken, { status: 'loading', message: '' });
+
+  try {
+    const dataUrl = await compressImageForScan(file);
+    const match = dataUrl.match(/^data:(image\/\w+);base64,(.*)$/);
+    if (!match) throw new Error('encode-failed');
+    const [, mediaType, base64] = match;
+
+    const res = await fetch(LABEL_SCAN_API_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ imageBase64: base64, mediaType }),
+    });
+    if (!res.ok) throw new Error('bad-status');
+    const data = await res.json();
+
+    if (!data.ok) {
+      setLabelScanState(panelToken, { status: 'error', message: "Couldn't read clear macros off that photo. Try a clearer shot or enter them manually." });
+      return;
+    }
+
+    if (!rcState.panel || rcState.panel.token !== panelToken) return;
+    setRcState((s) => ({
+      panel: {
+        ...s.panel,
+        draft: {
+          ...s.panel.draft,
+          kcal: String(data.kcal),
+          protein: String(data.protein),
+          fat: String(data.fat),
+          carbs: String(data.carbs),
+          labelScan: { status: 'idle', message: '' },
+        },
+      },
+    }));
+  } catch (err) {
+    setLabelScanState(panelToken, { status: 'error', message: "Couldn't reach the scanner. Try again or enter macros manually." });
+  }
+}
+
+function dismissLabelScanError() {
+  if (!rcState.panel || rcState.panel.mode !== 'form') return;
+  setLabelScanState(rcState.panel.token, { status: 'idle', message: '' });
 }
 
 function askDelete(type, id, name) {
@@ -686,6 +805,35 @@ function renderDetailPanel(panel) {
   `;
 }
 
+function renderLabelScanBlock(d) {
+  const ls = d.labelScan || { status: 'idle', message: '' };
+  const loading = ls.status === 'loading';
+
+  const btnInner = loading
+    ? `<span style="width:15px; height:15px; border:2px solid rgba(42,191,173,0.3); border-top-color:#2ABFAD; border-radius:50%; display:inline-block; animation:spin 0.7s linear infinite;"></span>Reading label…`
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l1.6-2.2h6.8L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"></path><circle cx="12" cy="13.5" r="3.4"></circle></svg>Scan label`;
+  const btnAttr = loading ? '' : 'data-action="scan-label"';
+
+  const errorHtml = ls.status === 'error' ? `
+    <div style="display:flex; align-items:flex-start; gap:10px; background:rgba(224,112,112,0.15); border:1px solid rgba(224,112,112,0.4); border-radius:11px; padding:12px 14px;">
+      <div style="flex:1; font-size:13px; color:#E07070; line-height:1.5;">${escapeHtmlRc(ls.message || "Couldn't read that label clearly.")}</div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+        <div data-action="scan-label-retry" style="font-size:12px; font-weight:600; color:#2ABFAD; cursor:pointer; white-space:nowrap;">Try again</div>
+        <div data-action="scan-label-dismiss" style="font-size:12px; font-weight:600; color:#8B9BAD; cursor:pointer; white-space:nowrap;">Enter manually</div>
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="rc-label-scan-block" style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
+      <div ${btnAttr} style="display:inline-flex; align-items:center; justify-content:center; gap:8px; align-self:flex-start; background:transparent; border:1.5px solid #2ABFAD; color:#E8EDF2; padding:10px 18px; border-radius:11px; font-size:14px; font-weight:500; cursor:${loading ? 'default' : 'pointer'}; opacity:${loading ? '0.75' : '1'}; transition:background 150ms ease;">
+        ${btnInner}
+      </div>
+      ${errorHtml}
+    </div>
+  `;
+}
+
 function renderTagChipsEditor(draft) {
   const tagChip = 'display:inline-flex; align-items:center; padding:7px 13px; border-radius:9px; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap; transition:background 150ms ease, border-color 150ms ease, color 150ms ease;';
   const chipsHtml = Data.getTags().map((t) => {
@@ -770,6 +918,7 @@ function renderFormPanel(panel) {
       ${photoHtml}
       <div style="font-size:12px; font-weight:600; color:#8B9BAD; margin-bottom:8px;">Name</div>
       <input id="rc-f-name" class="input-card" value="${escapeHtmlRc(d.name)}" placeholder="e.g. Banana" style="width:100%; margin-bottom:24px;" />
+      ${renderLabelScanBlock(d)}
       <div style="font-size:12px; font-weight:600; color:#8B9BAD; margin-bottom:8px;">Macros per 100g</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px;">
         <div>
@@ -1043,6 +1192,7 @@ function renderRecipes() {
       ${renderTagSettingsModal()}
       ${renderConfirmDelete()}
       <input type="file" id="rc-photo-input" accept="image/*" style="display:none;" />
+      <input type="file" id="rc-label-scan-input" accept="image/*" style="display:none;" />
     </div>
   `;
 
@@ -1185,6 +1335,9 @@ document.addEventListener('click', (e) => {
       break;
     case 'remove-photo': removeCardPhoto(type, id); break;
     case 'remove-form-photo': patchDraft({ imageUrl: null }); break;
+    case 'scan-label': triggerLabelScan(); break;
+    case 'scan-label-retry': triggerLabelScan(); break;
+    case 'scan-label-dismiss': dismissLabelScanError(); break;
     case 'open-tag-settings': openTagSettings(); break;
     case 'close-tag-settings': closeTagSettings(); break;
     case 'start-rename-tag': rcPendingFocus = { selector: '#rc-tag-rename' }; startRenameTag(id); break;
@@ -1221,6 +1374,8 @@ document.addEventListener('change', (e) => {
     renderRecipes();
   } else if (e.target.id === 'rc-photo-input') {
     applyPhotoFile(e.target.files && e.target.files[0]);
+  } else if (e.target.id === 'rc-label-scan-input') {
+    handleLabelScanFile(e.target.files && e.target.files[0]);
   } else if (e.target.id === 'rc-tag-merge-target') {
     setMergeTarget(e.target.value);
   }

@@ -87,7 +87,7 @@ function seedData() {
     lastMetDate: null,
   };
 
-  return { items, recipes, logs, weight, waist, hips, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak, proteinStreak, deletedIds: [], tags: defaultTags() };
+  return { items, recipes, logs, weight, waist, hips, goals, streak, dayLocks: {}, waterLogs: {}, waterStreak, proteinStreak, deletedIds: [], tags: defaultTags(), shoppingLists: {} };
 }
 
 // One-time upgrade from free-text `tags: string[]` on each item/recipe (plus
@@ -217,6 +217,7 @@ function normalizeData(parsed) {
   if (!parsed.waterStreak) parsed.waterStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
   if (!parsed.proteinStreak) parsed.proteinStreak = { currentStreak: 0, bestStreak: 0, lastMetDate: null };
   if (!parsed.deletedIds) parsed.deletedIds = [];
+  if (!parsed.shoppingLists) parsed.shoppingLists = {};
   if (parsed.goals && parsed.goals.waterTarget == null) parsed.goals.waterTarget = 2000;
   migrateMeasureHistory(parsed);
   migrateTagsIfNeeded(parsed);
@@ -266,6 +267,7 @@ function mergeRemoteAndLocal(remote, local) {
     waterStreak: { ...remote.waterStreak, ...local.waterStreak },
     proteinStreak: { ...remote.proteinStreak, ...local.proteinStreak },
     tags: mergeById(remote.tags, local.tags, deletedIds),
+    shoppingLists: { ...remote.shoppingLists, ...local.shoppingLists },
     deletedIds: Array.from(deletedIds),
   };
 }
@@ -678,6 +680,51 @@ const Data = {
     data.tags = data.tags.filter((t) => t.id !== id);
     data.deletedIds.push(id);
     saveData(data);
+  },
+
+  // ---- shopping list (one auto-generated list per week, keyed by that
+  // week's Monday date) ----
+  getShoppingList(weekKey) {
+    return loadData().shoppingLists[weekKey] || null;
+  },
+  // Full replace — used both to persist a first-time auto-generation and to
+  // rebuild from scratch on "Regenerate" (checked state is intentionally not
+  // preserved across a regenerate; see portia-shopping-list-cc-brief.md).
+  setShoppingList(weekKey, list) {
+    const data = loadData();
+    data.shoppingLists[weekKey] = list;
+    saveData(data);
+    return data.shoppingLists[weekKey];
+  },
+  clearShoppingList(weekKey) {
+    const data = loadData();
+    delete data.shoppingLists[weekKey];
+    saveData(data);
+  },
+  addShoppingListItem(weekKey, item) {
+    const data = loadData();
+    if (!data.shoppingLists[weekKey]) data.shoppingLists[weekKey] = { items: [], generatedAt: new Date().toISOString() };
+    data.shoppingLists[weekKey].items.push(item);
+    saveData(data);
+    return data.shoppingLists[weekKey];
+  },
+  removeShoppingListItem(weekKey, itemId) {
+    const data = loadData();
+    const list = data.shoppingLists[weekKey];
+    if (!list) return null;
+    list.items = list.items.filter((i) => i.id !== itemId);
+    saveData(data);
+    return list;
+  },
+  toggleShoppingListItem(weekKey, itemId) {
+    const data = loadData();
+    const list = data.shoppingLists[weekKey];
+    if (!list) return null;
+    const idx = list.items.findIndex((i) => i.id === itemId);
+    if (idx === -1) return null;
+    list.items[idx] = { ...list.items[idx], checked: !list.items[idx].checked };
+    saveData(data);
+    return list.items[idx];
   },
 
   // ---- goals ----

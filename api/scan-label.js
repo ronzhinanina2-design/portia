@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.error('scan-label: ANTHROPIC_API_KEY is not set in this deployment\'s environment variables');
-    res.status(500).json({ ok: false, reason: 'server-error' });
+    res.status(500).json({ ok: false, reason: 'server-error', stage: 'missing-key' });
     return;
   }
 
@@ -99,7 +99,7 @@ export default async function handler(req, res) {
 
     if (!apiRes.ok) {
       console.error('scan-label: Claude API error', apiRes.status, payload && payload.error);
-      res.status(500).json({ ok: false, reason: 'server-error' });
+      res.status(500).json({ ok: false, reason: 'server-error', stage: 'api-error', detail: `${apiRes.status} ${payload && payload.error && payload.error.message}` });
       return;
     }
 
@@ -114,6 +114,6 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true, kcal: parsed.kcal, protein: parsed.protein, carbs: parsed.carbs, fat: parsed.fat });
   } catch (err) {
     console.error('scan-label: unexpected error', err);
-    res.status(500).json({ ok: false, reason: 'server-error' });
+    res.status(500).json({ ok: false, reason: 'server-error', stage: 'unexpected', detail: String((err && err.message) || err) });
   }
 }
